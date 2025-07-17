@@ -1,0 +1,19 @@
+{
+  "name": "school-management-software",
+  "version": "0.0.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "concurrently \"npm:start-client\" \"npm:start-electron\"",
+    "start-client": "cd client && npm run dev",
+    "start-electron": "wait-on http://localhost:5173 && electron ."
+  },
+  "devDependencies": {
+    "electron": "^37.2.2",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "concurrently": "^9.2.0",
+    "sqlite3": "^5.1.7",
+    "wait-on": "^8.0.3"
+  }
+}
