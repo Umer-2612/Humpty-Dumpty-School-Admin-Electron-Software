@@ -7,20 +7,33 @@ export default function TableWrapper({
   rows,
   pageSize = 10,
   checkboxSelection = false,
+  style = {},
   ...props
 }) {
   return (
-    <Paper sx={{ height: 500, width: "100%", p: 0, m: 0, boxShadow: "none" }}>
+    <Paper
+      sx={{
+        width: "100%",
+        p: 0,
+        m: 0,
+        boxShadow: "none",
+        ...style,
+      }}
+    >
       <DataGrid
         rows={rows}
         columns={columns}
         pageSizeOptions={[5, 10, 25, 50]}
         initialState={{
           pagination: { paginationModel: { page: 0, pageSize } },
+          sorting: { sortModel: [{ field: "id", sort: "asc" }] },
         }}
         checkboxSelection={checkboxSelection}
         disableRowSelectionOnClick
-        sx={{ border: 0 }}
+        autoHeight
+        filterMode="none"
+        disableColumnFilter
+        sx={{ border: 0, width: "100%" }}
         {...props}
       />
     </Paper>

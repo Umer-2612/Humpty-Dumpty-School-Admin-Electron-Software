@@ -25,12 +25,13 @@ import {
   Settings as SettingsIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
+  LibraryBooks as LibraryBooksIcon,
 } from "@mui/icons-material";
 
 const menuItems = [
   { label: "Dashboard", icon: HomeIcon },
   { label: "Students", icon: UsersIcon },
-  { label: "Classes", icon: SchoolIcon },
+  { label: "Academic Settings", icon: LibraryBooksIcon },
   { label: "Staff", icon: SettingsIcon },
   { label: "Transport", icon: BusFrontIcon },
   { label: "Fees", icon: BookIcon },

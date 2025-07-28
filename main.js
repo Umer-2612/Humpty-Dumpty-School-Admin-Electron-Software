@@ -9,6 +9,19 @@ const {
   updateClass,
   deleteClass,
 } = require("./server/classes");
+const { getSetting, setSetting } = require("./server/settings");
+const {
+  getTeachers,
+  addTeacher,
+  updateTeacher,
+  deleteTeacher,
+} = require("./server/teachers");
+const {
+  getClassShifts,
+  addClassShift,
+  updateClassShift,
+  deleteClassShift,
+} = require("./server/class_shifts");
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -44,10 +57,10 @@ ipcMain.handle("get-branches", async () => {
   }
 });
 
-ipcMain.handle("get-students", async () => {
-  console.log("[main.js] IPC handler 'get-students' invoked.");
+ipcMain.handle("get-students", async (event, branch_id) => {
+  console.log("[main.js] IPC handler 'get-students' invoked.", branch_id);
   try {
-    const students = await getStudents();
+    const students = await getStudents(branch_id);
     return students;
   } catch (error) {
     console.error("[main.js] Error in 'get-students' handler:", error);
@@ -62,15 +75,13 @@ ipcMain.handle("add-student", async (event, studentData) => {
     return { success: true, student: result };
   } catch (error) {
     console.error("[main.js] Error in 'add-student' handler:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || "Failed to add student" };
   }
 });
 
 ipcMain.handle("get-classes", async () => {
-  console.log("[main.js] IPC handler 'get-classes' invoked.");
   try {
-    const classes = await getClasses();
-    return classes;
+    return await getClasses();
   } catch (error) {
     console.error("[main.js] Error in 'get-classes' handler:", error);
     return [];
@@ -95,10 +106,10 @@ ipcMain.handle("add-class", async (event, classData) => {
   console.log("[main.js] IPC handler 'add-class' invoked.", classData);
   try {
     const result = await addClass(classData);
-    return { success: true, class: result };
+    return { success: true, ...result };
   } catch (error) {
     console.error("[main.js] Error in 'add-class' handler:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || "Failed to add class" };
   }
 });
 
@@ -106,10 +117,10 @@ ipcMain.handle("update-class", async (event, classData) => {
   console.log("[main.js] IPC handler 'update-class' invoked.", classData);
   try {
     const result = await updateClass(classData);
-    return { success: true, class: result };
+    return { success: true, ...result };
   } catch (error) {
     console.error("[main.js] Error in 'update-class' handler:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || "Failed to update class" };
   }
 });
 
@@ -120,6 +131,96 @@ ipcMain.handle("delete-class", async (event, id) => {
     return { success: true, class: result };
   } catch (error) {
     console.error("[main.js] Error in 'delete-class' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-setting", async (event, key) => {
+  try {
+    return await getSetting(key);
+  } catch (error) {
+    console.error("[main.js] Error in 'get-setting' handler:", error);
+    return null;
+  }
+});
+ipcMain.handle("set-setting", async (event, key, value) => {
+  try {
+    await setSetting(key, value);
+    return { success: true };
+  } catch (error) {
+    console.error("[main.js] Error in 'set-setting' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-teachers", async () => {
+  try {
+    return await getTeachers();
+  } catch (error) {
+    console.error("[main.js] Error in 'get-teachers' handler:", error);
+    return [];
+  }
+});
+ipcMain.handle("add-teacher", async (event, teacherData) => {
+  try {
+    const result = await addTeacher(teacherData);
+    return { success: true, teacher: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'add-teacher' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("update-teacher", async (event, teacherData) => {
+  try {
+    const result = await updateTeacher(teacherData);
+    return { success: true, teacher: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'update-teacher' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("delete-teacher", async (event, id) => {
+  try {
+    const result = await deleteTeacher(id);
+    return { success: true, teacher: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'delete-teacher' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("get-class-shifts", async () => {
+  try {
+    return await getClassShifts();
+  } catch (error) {
+    console.error("[main.js] Error in 'get-class-shifts' handler:", error);
+    return [];
+  }
+});
+ipcMain.handle("add-class-shift", async (event, shiftData) => {
+  try {
+    const result = await addClassShift(shiftData);
+    return { success: true, shift: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'add-class-shift' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("update-class-shift", async (event, shiftData) => {
+  try {
+    const result = await updateClassShift(shiftData);
+    return { success: true, shift: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'update-class-shift' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("delete-class-shift", async (event, id) => {
+  try {
+    const result = await deleteClassShift(id);
+    return { success: true, shift: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'delete-class-shift' handler:", error);
     return { success: false, error: error.message };
   }
 });

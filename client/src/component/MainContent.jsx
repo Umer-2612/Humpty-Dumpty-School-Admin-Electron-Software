@@ -4,7 +4,7 @@ import Students from "../pages/Students";
 import Staff from "../pages/Staff";
 import Transport from "../pages/Transport";
 import Fees from "../pages/Fees";
-import Classes from "../pages/Classes";
+import AcademicSettings from "../pages/AcademicSettings";
 
 const MainContent = ({ activePage }) => {
   const renderPage = () => {
@@ -13,8 +13,8 @@ const MainContent = ({ activePage }) => {
         return <Dashboard />;
       case "Students":
         return <Students />;
-      case "Classes":
-        return <Classes />;
+      case "Academic Settings":
+        return <AcademicSettings />;
       case "Staff":
         return <Staff />;
       case "Transport":
