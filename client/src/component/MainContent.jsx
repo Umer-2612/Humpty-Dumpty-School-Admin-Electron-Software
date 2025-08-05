@@ -1,10 +1,10 @@
 import React from "react";
 import Dashboard from "../pages/Dashboard";
-import Students from "../pages/Students";
-import Staff from "../pages/Staff";
-import Transport from "../pages/Transport";
+import Students from "../pages/student/Students";
+import Staff from "../pages/staff/Staff";
+import Transport from "../pages/transport/Transport";
 import Fees from "../pages/Fees";
-import AcademicSettings from "../pages/AcademicSettings";
+import AcademicSettings from "../pages/academicSettings/AcademicSettings";
 
 const MainContent = ({ activePage }) => {
   const renderPage = () => {

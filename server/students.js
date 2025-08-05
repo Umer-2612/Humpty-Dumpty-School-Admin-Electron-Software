@@ -13,18 +13,18 @@ function getStudents(branch_id) {
         s.name,
         s.roll_number,
         s.class_id,
-        s.contact,
-        s.address,
+        s.shift_id,
         s.parents_contact1,
         s.parents_contact2,
         s.admission_date,
-        s.class_last_date,
+        s.admission_end_date,
         s.gender,
         s.mother_name,
         s.father_name,
         s.fee_scholarship,
+        s.birth_place,
         s.religion,
-        s.class_div,
+        s.address,
         s.created_at,
         c.name as class_name,
         b.name as branch_name,
@@ -59,20 +59,20 @@ function addStudent(studentData) {
       name,
       roll_number,
       class_id,
-      contact,
-      address,
+      shift_id,
       parents_contact1,
       parents_contact2,
       admission_date,
-      class_last_date,
+      admission_end_date,
       gender,
       mother_name,
       father_name,
       fee_scholarship,
+      birth_place,
       religion,
-      class_div,
+      address,
     } = studentData;
-    // Check for duplicate roll_number in the same class
+    // Check for duplicate roll_number within the same class
     db.get(
       `SELECT id FROM students WHERE roll_number = ? AND class_id = ?`,
       [roll_number, class_id],
@@ -84,33 +84,37 @@ function addStudent(studentData) {
           );
           reject(err);
         } else if (row) {
-          reject(new Error("Roll number already exists in this class."));
+          reject(
+            new Error(
+              "Roll number already exists in this class. Please use a unique roll number for this class."
+            )
+          );
         } else {
           db.run(
             `
             INSERT INTO students (
-              name, roll_number, class_id, contact, address,
-              parents_contact1, parents_contact2, admission_date, class_last_date, gender,
-              mother_name, father_name, fee_scholarship, religion, class_div
+              name, roll_number, class_id, shift_id, parents_contact1, parents_contact2,
+              admission_date, admission_end_date, gender, mother_name, father_name,
+              fee_scholarship, birth_place, religion, address
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
             [
               name,
               roll_number,
               class_id,
-              contact,
-              address,
+              shift_id,
               parents_contact1,
               parents_contact2,
               admission_date,
-              class_last_date,
+              admission_end_date,
               gender,
               mother_name,
               father_name,
               fee_scholarship,
+              birth_place,
               religion,
-              class_div,
+              address,
             ],
             function (err) {
               if (err) {
@@ -161,4 +165,168 @@ function getClasses() {
   });
 }
 
-module.exports = { getStudents, addStudent, getClasses };
+// Update a student
+function updateStudent(studentData) {
+  console.log("[server/students.js] updateStudent() called with:", studentData);
+  return new Promise((resolve, reject) => {
+    const {
+      id,
+      name,
+      roll_number,
+      class_id,
+      shift_id,
+      parents_contact1,
+      parents_contact2,
+      admission_date,
+      admission_end_date,
+      gender,
+      mother_name,
+      father_name,
+      fee_scholarship,
+      birth_place,
+      religion,
+      address,
+    } = studentData;
+
+    // Check for duplicate roll_number within the same class (excluding current student)
+    db.get(
+      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND id != ?`,
+      [roll_number, class_id, id],
+      (err, row) => {
+        if (err) {
+          console.error(
+            "[server/students.js] Error checking roll number:",
+            err
+          );
+          reject(err);
+        } else if (row) {
+          reject(
+            new Error(
+              "Roll number already exists in this class. Please use a unique roll number for this class."
+            )
+          );
+        } else {
+          db.run(
+            `
+            UPDATE students SET 
+              name = ?, 
+              roll_number = ?, 
+              class_id = ?, 
+              shift_id = ?,
+              parents_contact1 = ?,
+              parents_contact2 = ?,
+              admission_date = ?,
+              admission_end_date = ?,
+              gender = ?,
+              mother_name = ?,
+              father_name = ?,
+              fee_scholarship = ?,
+              birth_place = ?,
+              religion = ?,
+              address = ?
+            WHERE id = ?
+          `,
+            [
+              name,
+              roll_number,
+              class_id,
+              shift_id,
+              parents_contact1,
+              parents_contact2,
+              admission_date,
+              admission_end_date,
+              gender,
+              mother_name,
+              father_name,
+              fee_scholarship,
+              birth_place,
+              religion,
+              address,
+              id,
+            ],
+            function (err) {
+              if (err) {
+                console.error(
+                  "[server/students.js] Error updating student:",
+                  err
+                );
+                reject(err);
+              } else {
+                console.log(
+                  "[server/students.js] Student updated with ID:",
+                  id
+                );
+                resolve({ id, ...studentData });
+              }
+            }
+          );
+        }
+      }
+    );
+  });
+}
+
+// Delete a student
+function deleteStudent(id) {
+  console.log("🟣 [BACKEND] server/students.js: deleteStudent() called with id:", id);
+  console.log("🟣 [BACKEND] server/students.js: ID type:", typeof id);
+  console.log("🟣 [BACKEND] server/students.js: ID value:", JSON.stringify(id));
+  
+  return new Promise((resolve, reject) => {
+    console.log("🟣 [BACKEND] server/students.js: Executing SQL DELETE query...");
+    console.log("🟣 [BACKEND] server/students.js: SQL Query: DELETE FROM students WHERE id = ?");
+    console.log("🟣 [BACKEND] server/students.js: SQL Parameters:", [id]);
+    
+    db.run(
+      `DELETE FROM students WHERE id = ?`,
+      [id],
+      function (err) {
+        if (err) {
+          console.error(
+            "🟣 [BACKEND] server/students.js: Database error during delete:",
+            err
+          );
+          console.error(
+            "🟣 [BACKEND] server/students.js: Error code:",
+            err.code
+          );
+          console.error(
+            "🟣 [BACKEND] server/students.js: Error message:",
+            err.message
+          );
+          reject(err);
+        } else {
+          console.log(
+            "🟣 [BACKEND] server/students.js: SQL DELETE executed successfully"
+          );
+          console.log(
+            "🟣 [BACKEND] server/students.js: Student ID:",
+            id
+          );
+          console.log(
+            "🟣 [BACKEND] server/students.js: Rows affected:",
+            this.changes
+          );
+          console.log(
+            "🟣 [BACKEND] server/students.js: Last insert row ID:",
+            this.lastID
+          );
+          
+          if (this.changes === 0) {
+            console.log(
+              "🟣 [BACKEND] server/students.js: No rows affected - student not found"
+            );
+            reject(new Error("Student not found"));
+          } else {
+            console.log(
+              "🟣 [BACKEND] server/students.js: Delete successful, resolving with success"
+            );
+            resolve({ success: true, id });
+          }
+        }
+      }
+    );
+  });
+}
+
+module.exports = { getStudents, addStudent, getClasses, updateStudent, deleteStudent };

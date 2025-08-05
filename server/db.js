@@ -2,10 +2,7 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 
-const dbPath = path.join(
-  require("electron").app.getPath("userData"),
-  "school.db"
-);
+const dbPath = path.join(__dirname, "school.db");
 
 console.log("Database path:", dbPath);
 
@@ -61,44 +58,133 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS students (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      roll_number TEXT UNIQUE NOT NULL,
+      roll_number TEXT NOT NULL,
       class_id INTEGER NOT NULL,
-      contact TEXT,
-      address TEXT,
+      shift_id INTEGER,
       parents_contact1 TEXT,
       parents_contact2 TEXT,
       admission_date TEXT,
-      class_last_date TEXT,
+      admission_end_date TEXT,
       gender TEXT,
       mother_name TEXT,
       father_name TEXT,
       fee_scholarship INTEGER,
+      birth_place TEXT,
       religion TEXT,
-      class_div TEXT,
+      address TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (class_id) REFERENCES classes (id)
+      FOREIGN KEY (class_id) REFERENCES classes (id),
+      UNIQUE (roll_number, class_id)
+    );
+  `);
+
+  // Transport table (common for both branches)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transport (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      driver_name TEXT NOT NULL,
+      driver_route TEXT NOT NULL,
+      driver_car TEXT NOT NULL,
+      driver_car_number TEXT UNIQUE NOT NULL,
+      driver_contact TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
   // Migration: add columns if they do not exist
   const studentColumns = [
+    { name: "shift_id", type: "INTEGER" },
     { name: "parents_contact1", type: "TEXT" },
     { name: "parents_contact2", type: "TEXT" },
     { name: "admission_date", type: "TEXT" },
-    { name: "class_last_date", type: "TEXT" },
+    { name: "admission_end_date", type: "TEXT" },
     { name: "gender", type: "TEXT" },
     { name: "mother_name", type: "TEXT" },
     { name: "father_name", type: "TEXT" },
     { name: "fee_scholarship", type: "INTEGER" },
+    { name: "birth_place", type: "TEXT" },
     { name: "religion", type: "TEXT" },
-    { name: "class_div", type: "TEXT" },
   ];
+
+  // Migration: rename class_last_date to admission_end_date if it exists
+  db.all("PRAGMA table_info(students)", (err, columns) => {
+    if (!err && columns) {
+      const existing = columns.map((col) => col.name);
+      if (existing.includes("class_last_date") && !existing.includes("admission_end_date")) {
+        db.run(`ALTER TABLE students ADD COLUMN admission_end_date TEXT`);
+        db.run(`UPDATE students SET admission_end_date = class_last_date WHERE class_last_date IS NOT NULL`);
+        // Note: SQLite doesn't support DROP COLUMN, so we leave the old column
+      }
+    }
+  });
   db.all("PRAGMA table_info(students)", (err, columns) => {
     if (!err && columns) {
       const existing = columns.map((col) => col.name);
       studentColumns.forEach((col) => {
         if (!existing.includes(col.name)) {
           db.run(`ALTER TABLE students ADD COLUMN ${col.name} ${col.type}`);
+        }
+      });
+    }
+  });
+
+  // Migration: Fix roll_number constraint from global UNIQUE to class-wise UNIQUE
+  // This migration recreates the students table with the correct constraint
+  db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='students'", (err, result) => {
+    if (!err && result && result.sql.includes('roll_number TEXT UNIQUE')) {
+      console.log("[db.js] Migrating students table to fix roll_number constraint...");
+      
+      // Create new table with correct schema
+      db.run(`
+        CREATE TABLE students_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          roll_number TEXT NOT NULL,
+          class_id INTEGER NOT NULL,
+          shift_id INTEGER,
+          parents_contact1 TEXT,
+          parents_contact2 TEXT,
+          admission_date TEXT,
+          admission_end_date TEXT,
+          gender TEXT,
+          mother_name TEXT,
+          father_name TEXT,
+          fee_scholarship INTEGER,
+          birth_place TEXT,
+          religion TEXT,
+          address TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (class_id) REFERENCES classes (id),
+          UNIQUE (roll_number, class_id)
+        );
+      `, (err) => {
+        if (!err) {
+          // Copy data from old table to new table
+          db.run(`
+            INSERT INTO students_new 
+            SELECT * FROM students;
+          `, (err) => {
+            if (!err) {
+              // Drop old table and rename new table
+              db.run(`DROP TABLE students`, (err) => {
+                if (!err) {
+                  db.run(`ALTER TABLE students_new RENAME TO students`, (err) => {
+                    if (!err) {
+                      console.log("[db.js] Successfully migrated students table with class-wise roll_number constraint");
+                    } else {
+                      console.error("[db.js] Error renaming migrated students table:", err);
+                    }
+                  });
+                } else {
+                  console.error("[db.js] Error dropping old students table:", err);
+                }
+              });
+            } else {
+              console.error("[db.js] Error copying data to new students table:", err);
+            }
+          });
+        } else {
+          console.error("[db.js] Error creating new students table:", err);
         }
       });
     }
@@ -167,32 +253,50 @@ db.serialize(() => {
     }
   });
 
-  // Seed some classes if empty
-  // db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {
-  //   if (row.count === 0) {
-  //     const defaultFees = JSON.stringify({ term1: 5000, term2: 5000 });
-  //     db.run(
-  //       `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Nursery', ?)`,
-  //       defaultFees
-  //     );
-  //     db.run(
-  //       `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'LKG', ?)`,
-  //       defaultFees
-  //     );
-  //     db.run(
-  //       `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'UKG', ?)`,
-  //       defaultFees
-  //     );
-  //     db.run(
-  //       `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Class 1', ?)`,
-  //       defaultFees
-  //     );
-  //     db.run(
-  //       `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Class 2', ?)`,
-  //       defaultFees
-  //     );
-  //   }
-  // });
+  // Seed class shifts if empty
+  db.get("SELECT COUNT(*) as count FROM class_shifts", (err, row) => {
+    if (row.count === 0) {
+      db.run(
+        `INSERT INTO class_shifts (name, time) VALUES ('Morning', '8:00 AM')`
+      );
+      db.run(
+        `INSERT INTO class_shifts (name, time) VALUES ('Afternoon', '12:00 PM')`
+      );
+    }
+  });
+
+  // Seed classes if empty
+  db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {
+    if (row.count === 0) {
+      // Humpty Dumpty Kindergarden classes
+      const kindergardenFees = JSON.stringify({ term1: 9000, term2: 9000 });
+      const juniorKgFees = JSON.stringify({ term1: 10000, term2: 10000 });
+
+      // Humpty Dumpty Charitable Trust classes
+      const seniorKgFees = JSON.stringify({ term1: 11000, term2: 11000 });
+      const balVatikaFees = JSON.stringify({ term1: 12000, term2: 12000 });
+
+      // Insert classes for Humpty Dumpty Kindergarden (branch_id = 1)
+      db.run(
+        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Kindergarden', ?)`,
+        kindergardenFees
+      );
+      db.run(
+        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Junior Kg', ?)`,
+        juniorKgFees
+      );
+
+      // Insert classes for Humpty Dumpty Charitable Trust (branch_id = 2)
+      db.run(
+        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Senior Kg', ?)`,
+        seniorKgFees
+      );
+      db.run(
+        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Bal Vatika', ?)`,
+        balVatikaFees
+      );
+    }
+  });
 });
 
 module.exports = db;

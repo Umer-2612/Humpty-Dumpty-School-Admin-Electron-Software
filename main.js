@@ -2,7 +2,13 @@ const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
 const { getBranches } = require("./server/branches");
-const { getStudents, addStudent, getClasses } = require("./server/students");
+const {
+  getStudents,
+  addStudent,
+  getClasses,
+  updateStudent,
+  deleteStudent,
+} = require("./server/students");
 const {
   getClassesByBranch,
   addClass,
@@ -16,6 +22,12 @@ const {
   updateTeacher,
   deleteTeacher,
 } = require("./server/teachers");
+const {
+  getTransport,
+  addTransport,
+  updateTransport,
+  deleteTransport,
+} = require("./server/transport");
 const {
   getClassShifts,
   addClassShift,
@@ -76,6 +88,42 @@ ipcMain.handle("add-student", async (event, studentData) => {
   } catch (error) {
     console.error("[main.js] Error in 'add-student' handler:", error);
     return { success: false, error: error.message || "Failed to add student" };
+  }
+});
+
+ipcMain.handle("update-student", async (event, studentData) => {
+  console.log("[main.js] IPC handler 'update-student' invoked.", studentData);
+  try {
+    const result = await updateStudent(studentData);
+    return { success: true, student: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'update-student' handler:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to update student",
+    };
+  }
+});
+
+ipcMain.handle("delete-student", async (event, id) => {
+  console.log("🔵 [BACKEND] main.js: IPC handler 'delete-student' invoked with ID:", id);
+  console.log("🔵 [BACKEND] main.js: ID type:", typeof id);
+  console.log("🔵 [BACKEND] main.js: ID value:", JSON.stringify(id));
+  
+  try {
+    console.log("🔵 [BACKEND] main.js: Calling deleteStudent function...");
+    const result = await deleteStudent(id);
+    console.log("🔵 [BACKEND] main.js: deleteStudent result:", result);
+    console.log("🔵 [BACKEND] main.js: Returning success response");
+    return { success: true, id: result.id };
+  } catch (error) {
+    console.error("🔵 [BACKEND] main.js: Error in 'delete-student' handler:", error);
+    console.error("🔵 [BACKEND] main.js: Error message:", error.message);
+    console.error("🔵 [BACKEND] main.js: Error stack:", error.stack);
+    return {
+      success: false,
+      error: error.message || "Failed to delete student",
+    };
   }
 });
 
@@ -221,6 +269,46 @@ ipcMain.handle("delete-class-shift", async (event, id) => {
     return { success: true, shift: result };
   } catch (error) {
     console.error("[main.js] Error in 'delete-class-shift' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Transport IPC handlers
+ipcMain.handle("get-transport", async () => {
+  try {
+    return await getTransport();
+  } catch (error) {
+    console.error("[main.js] Error in 'get-transport' handler:", error);
+    return [];
+  }
+});
+
+ipcMain.handle("add-transport", async (event, transportData) => {
+  try {
+    const result = await addTransport(transportData);
+    return { success: true, transport: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'add-transport' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("update-transport", async (event, transportData) => {
+  try {
+    const result = await updateTransport(transportData);
+    return { success: true, transport: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'update-transport' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("delete-transport", async (event, id) => {
+  try {
+    const result = await deleteTransport(id);
+    return { success: true, id: result.id };
+  } catch (error) {
+    console.error("[main.js] Error in 'delete-transport' handler:", error);
     return { success: false, error: error.message };
   }
 });

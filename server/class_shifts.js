@@ -2,7 +2,9 @@ const db = require("./db");
 
 // Get all class shifts
 function getClassShifts() {
-  return new Promise((resolve, reject) => {
+  console.log("server/class_shifts.js] getClassShifts() called");
+  // take in variable and then return
+  const data = new Promise((resolve, reject) => {
     db.all(
       `SELECT id, name, time FROM class_shifts ORDER BY name`,
       (err, rows) => {
@@ -11,6 +13,8 @@ function getClassShifts() {
       }
     );
   });
+  console.log("here: ", data);
+  return data;
 }
 
 // Add a new class shift

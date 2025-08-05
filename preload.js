@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getBranches: () => ipcRenderer.invoke("get-branches"),
   getStudents: (branch_id) => ipcRenderer.invoke("get-students", branch_id),
   addStudent: (studentData) => ipcRenderer.invoke("add-student", studentData),
+  updateStudent: (studentData) =>
+    ipcRenderer.invoke("update-student", studentData),
+  deleteStudent: (id) => ipcRenderer.invoke("delete-student", id),
   getClassesByBranch: (branch_id) =>
     ipcRenderer.invoke("get-classes-by-branch", branch_id),
   addClass: (classData) => ipcRenderer.invoke("add-class", classData),
@@ -23,4 +26,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateClassShift: (shiftData) =>
     ipcRenderer.invoke("update-class-shift", shiftData),
   deleteClassShift: (id) => ipcRenderer.invoke("delete-class-shift", id),
+  getTransport: () => ipcRenderer.invoke("get-transport"),
+  addTransport: (transportData) => ipcRenderer.invoke("add-transport", transportData),
+  updateTransport: (transportData) => ipcRenderer.invoke("update-transport", transportData),
+  deleteTransport: (id) => ipcRenderer.invoke("delete-transport", id),
 });
