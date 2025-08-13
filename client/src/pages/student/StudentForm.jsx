@@ -58,7 +58,8 @@ const StudentForm = ({
   // Step 0: Basic Student Details
   const renderStep0 = () => (
     <>
-      <Grid item xs={12}>
+      {/* Row 1: Name | Roll No. (auto) */}
+      <Grid item xs={12} md={8}>
         <TextField
           label="Name"
           name="name"
@@ -81,23 +82,18 @@ const StudentForm = ({
           sx={{ bgcolor: "white" }}
         />
       </Grid>
-      <Grid item xs={12}>
+      <Grid item xs={12} md={4}>
         <TextField
-          label="Roll Number"
+          label="Roll No."
           name="roll_number"
           value={form.roll_number}
           onChange={handleInputChange}
-          fullWidth
-          required
           variant="outlined"
           size="small"
           type="number"
           error={!!errors.roll_number}
           helperText={
-            errors.roll_number ||
-            (!isEditing
-              ? "Auto-generated based on selected class and shift"
-              : "")
+            errors.roll_number || (!isEditing ? "Auto-generated" : "")
           }
           InputProps={{
             startAdornment: (
@@ -108,19 +104,19 @@ const StudentForm = ({
             min: 1,
             readOnly: !isEditing,
           }}
+          disabled={!isEditing}
           sx={{
-            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
-              {
-                WebkitAppearance: "none",
-                margin: 0,
-              },
-            "& input[type=number]": {
-              MozAppearance: "textfield",
+            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
+              WebkitAppearance: "none",
+              margin: 0,
             },
-            bgcolor: "white",
+            "& input[type=number]": { MozAppearance: "textfield" },
+            bgcolor: !isEditing ? "#f5f5f5" : "white",
+            width: { xs: 180, sm: 200, md: "100%" },
           }}
         />
       </Grid>
+      {/* Row 2: Class | Shift */}
       <Grid item xs={12} md={6}>
         <FormControl
           fullWidth

@@ -70,11 +70,22 @@ const Staff = () => {
               : "-"
           }
         >
-          <span>
-            {Array.isArray(params.row.class_names)
-              ? params.row.class_names.join(", ")
-              : "-"}
-          </span>
+          <Box sx={{ width: "100%", overflow: "hidden" }}>
+            <span
+              style={{
+                display: "inline-block",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "bottom",
+              }}
+            >
+              {Array.isArray(params.row.class_names)
+                ? params.row.class_names.join(", ")
+                : "-"}
+            </span>
+          </Box>
         </Tooltip>
       ),
     },
@@ -90,11 +101,22 @@ const Staff = () => {
               : "-"
           }
         >
-          <span>
-            {Array.isArray(params.row.shift_names)
-              ? params.row.shift_names.join(", ")
-              : "-"}
-          </span>
+          <Box sx={{ width: "100%", overflow: "hidden" }}>
+            <span
+              style={{
+                display: "inline-block",
+                maxWidth: "100%",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                verticalAlign: "bottom",
+              }}
+            >
+              {Array.isArray(params.row.shift_names)
+                ? params.row.shift_names.join(", ")
+                : "-"}
+            </span>
+          </Box>
         </Tooltip>
       ),
     },

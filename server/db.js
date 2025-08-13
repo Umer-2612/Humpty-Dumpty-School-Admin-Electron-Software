@@ -353,12 +353,8 @@ db.serialize(() => {
   // Seed branches if empty
   db.get("SELECT COUNT(*) as count FROM branches", (err, row) => {
     if (row.count === 0) {
-      db.run(
-        `INSERT INTO branches (name) VALUES ('Humpty Dumpty Kindergarden')`
-      );
-      db.run(
-        `INSERT INTO branches (name) VALUES ('Humpty Dumpty Charitable Trust')`
-      );
+      db.run(`INSERT INTO branches (name) VALUES ('Kindergarden')`);
+      db.run(`INSERT INTO branches (name) VALUES ('Charitable Trust')`);
     }
   });
 
