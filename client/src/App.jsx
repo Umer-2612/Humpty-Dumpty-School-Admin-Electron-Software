@@ -11,7 +11,7 @@ function App() {
 
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ display: "flex", height: "100vh" }}>
+      <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
         <Sidebar activePage={activePage} setActivePage={setActivePage} />
         <Box
           component="main"
@@ -19,6 +19,10 @@ function App() {
             flexGrow: 1,
             p: 3,
             backgroundColor: theme.palette.background.default,
+            height: "100vh",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           <MainContent activePage={activePage} />

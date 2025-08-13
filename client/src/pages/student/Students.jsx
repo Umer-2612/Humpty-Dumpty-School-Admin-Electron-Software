@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Button from "@mui/material/Button";
 import AddStudentModal from "./AddStudentModal";
 import EditStudentModal from "./EditStudentModal";
@@ -21,6 +21,7 @@ import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import { useBranch } from "../../context/useBranch";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import ViewStudentModal from "./ViewStudentModal";
 
 const SETTINGS_KEY = "studentsTableSettings";
 
@@ -32,8 +33,10 @@ const Students = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
+  const [viewingStudent, setViewingStudent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -46,271 +49,284 @@ const Students = () => {
     srNo: index + 1,
   }));
 
-  const columns = [
-    {
-      field: "srNo",
-      headerName: "Sr No",
-      width: 100,
-      headerAlign: "center",
-      align: "center",
-      type: "number",
-      disableColumnMenu: true,
-    },
-    {
-      field: "name",
-      headerName: "Name",
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <PersonIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+  const columns = useMemo(
+    () => [
+      {
+        field: "srNo",
+        headerName: "Sr No",
+        width: 100,
+        headerAlign: "center",
+        align: "center",
+        type: "number",
+        disableColumnMenu: true,
+      },
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 1,
+        minWidth: 150,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <PersonIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "roll_number",
+        headerName: "Roll No.",
+        flex: 0.6,
+        minWidth: 90,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <BadgeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "class_name",
+        headerName: "Class",
+        flex: 0.8,
+        minWidth: 120,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "branch_name",
+        headerName: "Branch",
+        flex: 0.9,
+        minWidth: 140,
+        renderCell: (params) => (
           <Tooltip title={params.value || ""}>
             <span>{params.value || ""}</span>
           </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "roll_number",
-      headerName: "Roll No.",
-      flex: 0.6,
-      minWidth: 90,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <BadgeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+        ),
+      },
+      {
+        field: "parents_contact1",
+        headerName: "Parent Contact 1",
+        flex: 0.8,
+        minWidth: 150,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "parents_contact2",
+        headerName: "Parent Contact 2",
+        flex: 0.8,
+        minWidth: 150,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "gender",
+        headerName: "Gender",
+        flex: 0.5,
+        minWidth: 80,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <WcIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "mother_name",
+        headerName: "Mother Name",
+        flex: 0.8,
+        minWidth: 130,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "father_name",
+        headerName: "Father Name",
+        flex: 0.8,
+        minWidth: 130,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "fee_scholarship",
+        headerName: "Fee Scholarship",
+        flex: 0.7,
+        minWidth: 130,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "birth_place",
+        headerName: "Birth Place",
+        flex: 0.7,
+        minWidth: 120,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <LocationOnIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "religion",
+        headerName: "Religion",
+        flex: 0.6,
+        minWidth: 100,
+        renderCell: (params) => (
           <Tooltip title={params.value || ""}>
             <span>{params.value || ""}</span>
           </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "class_name",
-      headerName: "Class",
-      flex: 0.8,
-      minWidth: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "branch_name",
-      headerName: "Branch",
-      flex: 0.9,
-      minWidth: 140,
-      renderCell: (params) => (
-        <Tooltip title={params.value || ""}>
-          <span>{params.value || ""}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "parents_contact1",
-      headerName: "Parent Contact 1",
-      flex: 0.8,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "parents_contact2",
-      headerName: "Parent Contact 2",
-      flex: 0.8,
-      minWidth: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "gender",
-      headerName: "Gender",
-      flex: 0.5,
-      minWidth: 80,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <WcIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "mother_name",
-      headerName: "Mother Name",
-      flex: 0.8,
-      minWidth: 130,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "father_name",
-      headerName: "Father Name",
-      flex: 0.8,
-      minWidth: 130,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "fee_scholarship",
-      headerName: "Fee Scholarship",
-      flex: 0.7,
-      minWidth: 130,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "birth_place",
-      headerName: "Birth Place",
-      flex: 0.7,
-      minWidth: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <LocationOnIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "religion",
-      headerName: "Religion",
-      flex: 0.6,
-      minWidth: 100,
-      renderCell: (params) => (
-        <Tooltip title={params.value || ""}>
-          <span>{params.value || ""}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "admission_date",
-      headerName: "Admission Date",
-      flex: 0.8,
-      minWidth: 140,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "admission_end_date",
-      headerName: "Admission End Date",
-      flex: 0.8,
-      minWidth: 160,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span>{params.value || ""}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "address",
-      headerName: "Address",
-      flex: 1.2,
-      minWidth: 180,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-          <LocationOnIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                maxWidth: "200px",
+        ),
+      },
+      {
+        field: "admission_date",
+        headerName: "Admission Date",
+        flex: 0.8,
+        minWidth: 140,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "admission_end_date",
+        headerName: "Admission End Date",
+        flex: 0.8,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span>{params.value || ""}</span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      {
+        field: "address",
+        headerName: "Address",
+        flex: 1.2,
+        minWidth: 180,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+            <LocationOnIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={params.value || ""}>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "200px",
+                }}
+              >
+                {params.value || ""}
+              </span>
+            </Tooltip>
+          </Box>
+        ),
+      },
+      // {
+      //   field: "created_at",
+      //   headerName: "Created At",
+      //   flex: 0.8,
+      //   minWidth: 130,
+      //   renderCell: (params) => (
+      //     <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+      //       <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+      //       <Tooltip title={params.value || ""}>
+      //         <span>{params.value || ""}</span>
+      //       </Tooltip>
+      //     </Box>
+      //   ),
+      // },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 260,
+        sortable: false,
+        renderCell: (params) => (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="small"
+              onClick={() => {
+                setViewingStudent(params.row);
+                setShowViewModal(true);
               }}
             >
-              {params.value || ""}
-            </span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    // {
-    //   field: "created_at",
-    //   headerName: "Created At",
-    //   flex: 0.8,
-    //   minWidth: 130,
-    //   renderCell: (params) => (
-    //     <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-    //       <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-    //       <Tooltip title={params.value || ""}>
-    //         <span>{params.value || ""}</span>
-    //       </Tooltip>
-    //     </Box>
-    //   ),
-    // },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 180,
-      sortable: false,
-      renderCell: (params) => (
-        <div>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            onClick={() => handleEditClick(params.row)}
-            sx={{ mr: 1 }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            size="small"
-            onClick={() => handleDeleteClick(params.row)}
-          >
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ];
+              Details
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              onClick={() => handleEditClick(params.row)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              onClick={() => handleDeleteClick(params.row)}
+            >
+              Delete
+            </Button>
+          </Box>
+        ),
+      },
+    ],
+    []
+  );
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -368,19 +384,54 @@ const Students = () => {
           settings.columnVisibilityModel
         );
         setColumnVisibilityModel(settings.columnVisibilityModel || {});
+        setSettingsLoaded(true);
+      } else if (mounted) {
+        // Default visibility: only Name, Roll No, Class, Address, and Actions
+        const defaultVisible = new Set([
+          "name",
+          "roll_number",
+          "class_name",
+          "address",
+          "actions",
+        ]);
+        const model = {};
+        (columns || []).forEach((col) => {
+          if (!defaultVisible.has(col.field)) model[col.field] = false;
+        });
+        setColumnVisibilityModel(model);
+        setSettingsLoaded(true);
+        // Persist default once so user can tweak later
+        window.electronAPI.setSetting(SETTINGS_KEY, {
+          columnVisibilityModel: model,
+        });
       }
-      setSettingsLoaded(true);
     });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [columns]);
 
   const handleColumnVisibilityModelChange = useCallback((newModel) => {
     console.log("🔄 [Students] Column visibility changed:", newModel);
-    setColumnVisibilityModel(newModel);
-    window.electronAPI.setSetting(SETTINGS_KEY, {
-      columnVisibilityModel: newModel,
+    setColumnVisibilityModel((prev) => {
+      // shallow compare to avoid redundant state updates
+      const prevKeys = Object.keys(prev || {});
+      const newKeys = Object.keys(newModel || {});
+      if (prevKeys.length === newKeys.length) {
+        let same = true;
+        for (const k of newKeys) {
+          if (prev[k] !== newModel[k]) {
+            same = false;
+            break;
+          }
+        }
+        if (same) return prev;
+      }
+      // persist only when actually changed
+      window.electronAPI.setSetting(SETTINGS_KEY, {
+        columnVisibilityModel: newModel,
+      });
+      return newModel;
     });
   }, []);
 
@@ -443,6 +494,12 @@ const Students = () => {
           + Add Student
         </Button>
       </div>
+      <ViewStudentModal
+        open={showViewModal}
+        onClose={() => setShowViewModal(false)}
+        student={viewingStudent}
+        shifts={shifts}
+      />
 
       <Paper elevation={2} sx={{ p: 3 }}>
         {/* <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>

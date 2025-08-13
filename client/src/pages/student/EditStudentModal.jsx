@@ -199,7 +199,7 @@ const EditStudentModal = ({
               classes={classes}
               shifts={shifts}
               step={step}
-              isEditing
+              isEditing={true}
               errors={errors}
             />
           </Box>

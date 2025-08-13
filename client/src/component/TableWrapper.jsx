@@ -14,9 +14,13 @@ export default function TableWrapper({
     <Paper
       sx={{
         width: "100%",
+        height: "100%",
         p: 0,
         m: 0,
         boxShadow: "none",
+        minWidth: 0,
+        overflowX: "auto",
+        overflowY: "auto",
         ...style,
       }}
     >
@@ -30,10 +34,26 @@ export default function TableWrapper({
         }}
         checkboxSelection={checkboxSelection}
         disableRowSelectionOnClick
-        autoHeight
         filterMode="none"
         disableColumnFilter
-        sx={{ border: 0, width: "100%" }}
+        rowHeight={44}
+        headerHeight={48}
+        density="standard"
+        sx={{
+          border: 0,
+          width: "100%",
+          height: "100%",
+          // Ensure DataGrid uses its internal scrollers; allow horizontal scroll when needed
+          // Ensure perfect vertical centering for all cells
+          "& .MuiDataGrid-cell": {
+            display: "flex",
+            alignItems: "center",
+          },
+          // Keep header text vertically centered
+          "& .MuiDataGrid-columnHeaderTitleContainer": {
+            alignItems: "center",
+          },
+        }}
         {...props}
       />
     </Paper>

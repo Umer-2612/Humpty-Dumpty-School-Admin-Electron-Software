@@ -91,6 +91,82 @@ db.serialize(() => {
     );
   `);
 
+  // Fees table (branch-wise fees collection records)
+  // Fresh installs allow 'cash', 'cheque', and 'upi'
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_id INTEGER NOT NULL,
+      branch_id INTEGER NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      payment_type TEXT NOT NULL CHECK (payment_type IN ('cash', 'cheque', 'upi')),
+      cheque_number TEXT,
+      bank_name TEXT,
+      payee_name TEXT NOT NULL,
+      receipt_number TEXT UNIQUE NOT NULL,
+      payment_date DATE NOT NULL,
+      academic_year TEXT,
+      month_year TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (student_id) REFERENCES students (id),
+      FOREIGN KEY (branch_id) REFERENCES branches (id)
+    );
+  `);
+
+  // Migration: upgrade existing fees table constraint to include 'upi' in payment_type CHECK
+  db.get(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='fees'",
+    (err, row) => {
+      if (err) return; // silently skip
+      const ddl = row && row.sql ? row.sql : "";
+      const hasOldConstraint = ddl.includes(
+        "CHECK (payment_type IN ('cash', 'cheque'))"
+      );
+      const hasNewConstraint = ddl.includes(
+        "CHECK (payment_type IN ('cash', 'cheque', 'upi'))"
+      );
+      if (hasOldConstraint && !hasNewConstraint) {
+        db.serialize(() => {
+          db.run("BEGIN TRANSACTION");
+          db.run(`
+            CREATE TABLE IF NOT EXISTS fees_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL,
+              branch_id INTEGER NOT NULL,
+              amount DECIMAL(10,2) NOT NULL,
+              payment_type TEXT NOT NULL CHECK (payment_type IN ('cash', 'cheque', 'upi')),
+              cheque_number TEXT,
+              bank_name TEXT,
+              payee_name TEXT NOT NULL,
+              receipt_number TEXT UNIQUE NOT NULL,
+              payment_date DATE NOT NULL,
+              academic_year TEXT,
+              month_year TEXT,
+              notes TEXT,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (student_id) REFERENCES students (id),
+              FOREIGN KEY (branch_id) REFERENCES branches (id)
+            );
+          `);
+          // Copy data
+          db.run(`
+            INSERT INTO fees_new (
+              id, student_id, branch_id, amount, payment_type, cheque_number, bank_name,
+              payee_name, receipt_number, payment_date, academic_year, month_year, notes, created_at
+            )
+            SELECT id, student_id, branch_id, amount, payment_type, cheque_number, bank_name,
+                   payee_name, receipt_number, payment_date, academic_year, month_year, notes, created_at
+            FROM fees;
+          `);
+          db.run("DROP TABLE fees");
+          db.run("ALTER TABLE fees_new RENAME TO fees");
+          db.run("COMMIT");
+        });
+      }
+    }
+  );
+
   // Migration: add columns if they do not exist
   const studentColumns = [
     { name: "shift_id", type: "INTEGER" },
@@ -104,15 +180,23 @@ db.serialize(() => {
     { name: "fee_scholarship", type: "INTEGER" },
     { name: "birth_place", type: "TEXT" },
     { name: "religion", type: "TEXT" },
+    // New fee tracking fields
+    { name: "total_fees", type: "INTEGER" },
+    { name: "pending_fees", type: "INTEGER" },
   ];
 
   // Migration: rename class_last_date to admission_end_date if it exists
   db.all("PRAGMA table_info(students)", (err, columns) => {
     if (!err && columns) {
       const existing = columns.map((col) => col.name);
-      if (existing.includes("class_last_date") && !existing.includes("admission_end_date")) {
+      if (
+        existing.includes("class_last_date") &&
+        !existing.includes("admission_end_date")
+      ) {
         db.run(`ALTER TABLE students ADD COLUMN admission_end_date TEXT`);
-        db.run(`UPDATE students SET admission_end_date = class_last_date WHERE class_last_date IS NOT NULL`);
+        db.run(
+          `UPDATE students SET admission_end_date = class_last_date WHERE class_last_date IS NOT NULL`
+        );
         // Note: SQLite doesn't support DROP COLUMN, so we leave the old column
       }
     }
@@ -130,12 +214,17 @@ db.serialize(() => {
 
   // Migration: Fix roll_number constraint from global UNIQUE to class-wise UNIQUE
   // This migration recreates the students table with the correct constraint
-  db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='students'", (err, result) => {
-    if (!err && result && result.sql.includes('roll_number TEXT UNIQUE')) {
-      console.log("[db.js] Migrating students table to fix roll_number constraint...");
-      
-      // Create new table with correct schema
-      db.run(`
+  db.get(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='students'",
+    (err, result) => {
+      if (!err && result && result.sql.includes("roll_number TEXT UNIQUE")) {
+        console.log(
+          "[db.js] Migrating students table to fix roll_number constraint..."
+        );
+
+        // Create new table with correct schema
+        db.run(
+          `
         CREATE TABLE students_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           name TEXT NOT NULL,
@@ -157,38 +246,58 @@ db.serialize(() => {
           FOREIGN KEY (class_id) REFERENCES classes (id),
           UNIQUE (roll_number, class_id)
         );
-      `, (err) => {
-        if (!err) {
-          // Copy data from old table to new table
-          db.run(`
+      `,
+          (err) => {
+            if (!err) {
+              // Copy data from old table to new table
+              db.run(
+                `
             INSERT INTO students_new 
             SELECT * FROM students;
-          `, (err) => {
-            if (!err) {
-              // Drop old table and rename new table
-              db.run(`DROP TABLE students`, (err) => {
-                if (!err) {
-                  db.run(`ALTER TABLE students_new RENAME TO students`, (err) => {
-                    if (!err) {
-                      console.log("[db.js] Successfully migrated students table with class-wise roll_number constraint");
-                    } else {
-                      console.error("[db.js] Error renaming migrated students table:", err);
-                    }
-                  });
-                } else {
-                  console.error("[db.js] Error dropping old students table:", err);
+          `,
+                (err) => {
+                  if (!err) {
+                    // Drop old table and rename new table
+                    db.run(`DROP TABLE students`, (err) => {
+                      if (!err) {
+                        db.run(
+                          `ALTER TABLE students_new RENAME TO students`,
+                          (err) => {
+                            if (!err) {
+                              console.log(
+                                "[db.js] Successfully migrated students table with class-wise roll_number constraint"
+                              );
+                            } else {
+                              console.error(
+                                "[db.js] Error renaming migrated students table:",
+                                err
+                              );
+                            }
+                          }
+                        );
+                      } else {
+                        console.error(
+                          "[db.js] Error dropping old students table:",
+                          err
+                        );
+                      }
+                    });
+                  } else {
+                    console.error(
+                      "[db.js] Error copying data to new students table:",
+                      err
+                    );
+                  }
                 }
-              });
+              );
             } else {
-              console.error("[db.js] Error copying data to new students table:", err);
+              console.error("[db.js] Error creating new students table:", err);
             }
-          });
-        } else {
-          console.error("[db.js] Error creating new students table:", err);
-        }
-      });
+          }
+        );
+      }
     }
-  });
+  );
 
   // Migration: add division_id to classes if not exists
   db.all("PRAGMA table_info(classes)", (err, columns) => {

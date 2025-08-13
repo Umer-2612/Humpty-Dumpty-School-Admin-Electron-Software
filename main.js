@@ -4,8 +4,10 @@ const { spawn } = require("child_process");
 const { getBranches } = require("./server/branches");
 const {
   getStudents,
+  searchStudents,
   addStudent,
   getClasses,
+  getNextRollNumber,
   updateStudent,
   deleteStudent,
 } = require("./server/students");
@@ -28,6 +30,14 @@ const {
   updateTransport,
   deleteTransport,
 } = require("./server/transport");
+const {
+  getFees,
+  addFees,
+  updateFees,
+  deleteFees,
+  getStudentsForFees,
+  getFeesReceipt,
+} = require("./server/fees");
 const {
   getClassShifts,
   addClassShift,
@@ -77,6 +87,28 @@ ipcMain.handle("get-students", async (event, branch_id) => {
   } catch (error) {
     console.error("[main.js] Error in 'get-students' handler:", error);
     return [];
+  }
+});
+
+ipcMain.handle("search-students", async (event, branch_id, query) => {
+  console.log("[main.js] IPC handler 'search-students' invoked.", branch_id, query);
+  try {
+    const students = await searchStudents(branch_id, query);
+    return students;
+  } catch (error) {
+    console.error("[main.js] Error in 'search-students' handler:", error);
+    return [];
+  }
+});
+
+ipcMain.handle("get-next-roll-number", async (event, classId, shiftId) => {
+  console.log("[main.js] IPC handler 'get-next-roll-number' invoked.", { classId, shiftId });
+  try {
+    const next = await getNextRollNumber(classId, shiftId);
+    return { success: true, next };
+  } catch (error) {
+    console.error("[main.js] Error in 'get-next-roll-number' handler:", error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -311,4 +343,83 @@ ipcMain.handle("delete-transport", async (event, id) => {
     console.error("[main.js] Error in 'delete-transport' handler:", error);
     return { success: false, error: error.message };
   }
+});
+
+// Fees IPC handlers
+ipcMain.handle("get-fees", async (event, branchId) => {
+  return new Promise((resolve) => {
+    getFees(branchId, (err, fees) => {
+      if (err) {
+        console.error("[main.js] Error in 'get-fees' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, fees });
+      }
+    });
+  });
+});
+
+ipcMain.handle("add-fees", async (event, feesData) => {
+  return new Promise((resolve) => {
+    addFees(feesData, (err, result) => {
+      if (err) {
+        console.error("[main.js] Error in 'add-fees' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, id: result.id, receipt_number: result.receipt_number });
+      }
+    });
+  });
+});
+
+ipcMain.handle("update-fees", async (event, feesData) => {
+  return new Promise((resolve) => {
+    updateFees(feesData.id, feesData, (err, result) => {
+      if (err) {
+        console.error("[main.js] Error in 'update-fees' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, changes: result.changes });
+      }
+    });
+  });
+});
+
+ipcMain.handle("delete-fees", async (event, id) => {
+  return new Promise((resolve) => {
+    deleteFees(id, (err, result) => {
+      if (err) {
+        console.error("[main.js] Error in 'delete-fees' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, changes: result.changes });
+      }
+    });
+  });
+});
+
+ipcMain.handle("get-students-for-fees", async (event, branchId) => {
+  return new Promise((resolve) => {
+    getStudentsForFees(branchId, (err, students) => {
+      if (err) {
+        console.error("[main.js] Error in 'get-students-for-fees' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, students });
+      }
+    });
+  });
+});
+
+ipcMain.handle("get-fees-receipt", async (event, receiptNumber) => {
+  return new Promise((resolve) => {
+    getFeesReceipt(receiptNumber, (err, receipt) => {
+      if (err) {
+        console.error("[main.js] Error in 'get-fees-receipt' handler:", err);
+        resolve({ success: false, error: err.message });
+      } else {
+        resolve({ success: true, receipt });
+      }
+    });
+  });
 });

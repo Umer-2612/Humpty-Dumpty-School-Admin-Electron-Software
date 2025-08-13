@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* App layout: fill viewport and prevent global scrollbars */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Grid from "@mui/material/Grid";
 import TextField from "@mui/material/TextField";
 import FormControl from "@mui/material/FormControl";
@@ -28,6 +28,32 @@ const StudentForm = ({
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+
+  // Auto-generate next roll number when class or shift changes (only for add mode)
+  useEffect(() => {
+    const fetchNextRoll = async () => {
+      try {
+        if (!isEditing && form.class_id && form.shift_id) {
+          const res = await window.electronAPI.getNextRollNumber(
+            form.class_id,
+            form.shift_id
+          );
+          if (res && res.success) {
+            setForm((prev) => {
+              const current = String(prev.roll_number || "");
+              const nextVal = String(res.next);
+              if (current === nextVal) return prev; // avoid unnecessary state update
+              return { ...prev, roll_number: nextVal };
+            });
+          }
+        }
+      } catch (e) {
+        console.log(e);
+      }
+    };
+    fetchNextRoll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.class_id, form.shift_id, isEditing]);
 
   // Step 0: Basic Student Details
   const renderStep0 = () => (
@@ -67,7 +93,12 @@ const StudentForm = ({
           size="small"
           type="number"
           error={!!errors.roll_number}
-          helperText={errors.roll_number}
+          helperText={
+            errors.roll_number ||
+            (!isEditing
+              ? "Auto-generated based on selected class and shift"
+              : "")
+          }
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -75,6 +106,7 @@ const StudentForm = ({
               </InputAdornment>
             ),
             min: 1,
+            readOnly: !isEditing,
           }}
           sx={{
             "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
