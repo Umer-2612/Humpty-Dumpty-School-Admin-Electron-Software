@@ -82,35 +82,34 @@ db.serialize(() => {
     }
   });
 
-  // Remove old divisions table if present
-  db.run(`DROP TABLE IF EXISTS divisions;`);
+  // Divisions: store count on classes table; no separate divisions table
 
-  // Remove division_id from classes if present (SQLite doesn't support DROP COLUMN directly, so skip for now)
-  // (If needed, migration can be done manually)
-
-  // New divisions table: per-class
-  db.run(`
-    CREATE TABLE IF NOT EXISTS divisions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      class_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      UNIQUE(class_id, name),
-      FOREIGN KEY (class_id) REFERENCES classes (id)
-    );
-  `);
-
-  // Classes table (add division_id)
+  // Classes table with num_divisions column
   db.run(`
     CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       branch_id INTEGER NOT NULL,
       name TEXT NOT NULL,
       fees TEXT,
-      division_id INTEGER,
-      FOREIGN KEY (branch_id) REFERENCES branches (id),
-      FOREIGN KEY (division_id) REFERENCES divisions (id)
+      num_divisions INTEGER DEFAULT 0,
+      FOREIGN KEY (branch_id) REFERENCES branches (id)
     );
   `);
+
+  // Migration: add num_divisions to existing classes table if missing
+  db.get(`PRAGMA table_info(classes);`, (e) => {
+    // noop; separate query to check columns
+  });
+  db.all(`PRAGMA table_info(classes);`, (err, cols) => {
+    if (!err && Array.isArray(cols)) {
+      const hasNumDivs = cols.some((c) => c.name === "num_divisions");
+      if (!hasNumDivs) {
+        db.run(
+          `ALTER TABLE classes ADD COLUMN num_divisions INTEGER DEFAULT 0;`
+        );
+      }
+    }
+  });
 
   // Students table
   db.run(`
@@ -446,24 +445,7 @@ db.serialize(() => {
     }
   });
 
-  // Seed default academic year if none exists
-  db.get("SELECT COUNT(*) as count FROM academic_years", (err, row) => {
-    if (!err && row && row.count === 0) {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = now.getMonth() + 1; // 1-12
-      // Academic year June -> May
-      const startYear = month >= 6 ? year : year - 1;
-      const endYear = startYear + 1;
-      const name = `${startYear}-${String(endYear).slice(-2)}`;
-      const start_date = `${startYear}-06-01`;
-      const end_date = `${endYear}-05-31`;
-      db.run(
-        `INSERT INTO academic_years (name, start_date, end_date, is_active) VALUES (?, ?, ?, 1)`,
-        [name, start_date, end_date]
-      );
-    }
-  });
+  // (Removed duplicate academic_years seeding block to avoid UNIQUE constraint error)
 
   // Seed classes if empty
   db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {
@@ -478,21 +460,21 @@ db.serialize(() => {
 
       // Insert classes for Humpty Dumpty Kindergarden (branch_id = 1)
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Day Care', ?)`,
+        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (2, 'Day Care', ?, 1)`,
         dayCareFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Junior Kg', ?)`,
+        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (2, 'Junior Kg', ?, 1)`,
         juniorKgFees
       );
 
       // Insert classes for Humpty Dumpty Charitable Trust (branch_id = 2)
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Senior Kg', ?)`,
+        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (1, 'Senior Kg', ?, 1)`,
         seniorKgFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Bal Vatika', ?)`,
+        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (1, 'Bal Vatika', ?, 1)`,
         balVatikaFees
       );
     }

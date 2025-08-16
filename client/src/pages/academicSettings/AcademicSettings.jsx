@@ -35,6 +35,8 @@ const AcademicSettings = () => {
     srNo: index + 1,
   }));
 
+  console.log({ classes });
+
   const classColumns = [
     {
       field: "srNo",
@@ -66,6 +68,60 @@ const AcademicSettings = () => {
           <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
           <Tooltip title={Number(params.value).toLocaleString()}>
             <span>{Number(params.value).toLocaleString()}</span>
+          </Tooltip>
+        </Box>
+      ),
+    },
+    {
+      field: "term1_fee",
+      headerName: "Term 1",
+      width: 120,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
+          <Tooltip title={Number(params.value || 0).toLocaleString()}>
+            <span>{Number(params.value || 0).toLocaleString()}</span>
+          </Tooltip>
+        </Box>
+      ),
+    },
+    {
+      field: "term2_fee",
+      headerName: "Term 2",
+      width: 120,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
+          <Tooltip title={Number(params.value || 0).toLocaleString()}>
+            <span>{Number(params.value || 0).toLocaleString()}</span>
+          </Tooltip>
+        </Box>
+      ),
+    },
+    {
+      field: "books_charge",
+      headerName: "Books",
+      width: 120,
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
+          <Tooltip title={Number(params.value || 0).toLocaleString()}>
+            <span>{Number(params.value || 0).toLocaleString()}</span>
+          </Tooltip>
+        </Box>
+      ),
+    },
+    {
+      field: "num_divisions",
+      headerName: "Divisions",
+      width: 120,
+      headerAlign: "center",
+      align: "center",
+      type: "number",
+      renderCell: (params) => (
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <Tooltip title={Number(params.value || 0).toLocaleString()}>
+            <span>{Number(params.value || 0).toLocaleString()}</span>
           </Tooltip>
         </Box>
       ),

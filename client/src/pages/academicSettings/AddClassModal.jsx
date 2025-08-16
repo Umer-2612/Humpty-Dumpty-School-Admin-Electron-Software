@@ -21,7 +21,10 @@ const AddClassModal = ({
 }) => {
   const [form, setForm] = useState({
     name: "",
-    total_fees: "",
+    term1_fee: "",
+    term2_fee: "",
+    books_charge: "",
+    num_divisions: "",
   });
 
   const handleAddClass = async (e) => {
@@ -32,10 +35,13 @@ const AddClassModal = ({
       const res = await window.electronAPI.addClass({
         name: form.name,
         branch_id: branchId,
-        total_fees: Number(form.total_fees),
+        term1_fee: Number(form.term1_fee || 0),
+        term2_fee: Number(form.term2_fee || 0),
+        books_charge: Number(form.books_charge || 0),
+        num_divisions: Number(form.num_divisions || 0),
       });
       if (res.success) {
-        setForm({ name: "", total_fees: "" });
+        setForm({ name: "", term1_fee: "", term2_fee: "", books_charge: "", num_divisions: "" });
         onSuccess();
       } else {
         setError(res.error || "Failed to add class");

@@ -21,14 +21,20 @@ const EditClassModal = ({
 }) => {
   const [form, setForm] = useState({
     name: "",
-    total_fees: "",
+    term1_fee: "",
+    term2_fee: "",
+    books_charge: "",
+    num_divisions: "",
   });
 
   useEffect(() => {
     if (cls) {
       setForm({
         name: cls.name || "",
-        total_fees: cls.total_fees || "",
+        term1_fee: cls.term1_fee ?? "",
+        term2_fee: cls.term2_fee ?? "",
+        books_charge: cls.books_charge ?? "",
+        num_divisions: cls.num_divisions ?? "",
       });
     }
   }, [cls]);
@@ -41,7 +47,10 @@ const EditClassModal = ({
       const res = await window.electronAPI.updateClass({
         id: cls.id,
         name: form.name,
-        total_fees: Number(form.total_fees),
+        term1_fee: Number(form.term1_fee || 0),
+        term2_fee: Number(form.term2_fee || 0),
+        books_charge: Number(form.books_charge || 0),
+        num_divisions: Number(form.num_divisions || 0),
       });
       if (res.success) {
         onSuccess();
