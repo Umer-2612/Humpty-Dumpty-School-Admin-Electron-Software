@@ -14,6 +14,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { teal } from "@mui/material/colors";
 import Modal from "../../component/Modal";
 import { useBranch } from "../../context/useBranch";
+import { useYear } from "../../context/YearProvider.jsx";
 import Autocomplete from "@mui/material/Autocomplete";
 import InputAdornment from "@mui/material/InputAdornment";
 import PersonIcon from "@mui/icons-material/Person";
@@ -31,6 +32,7 @@ const EditFeesModal = ({
   feesRecord,
 }) => {
   const { selected: selectedBranch } = useBranch();
+  const { selected: selectedYear } = useYear();
   // Autocomplete/search states (mirrors AddFeesModal)
   const [studentsList, setStudentsList] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -59,7 +61,10 @@ const EditFeesModal = ({
     if (!window?.electronAPI?.getStudents) return;
     setStudentsLoading(true);
     try {
-      const data = await window.electronAPI.getStudents(branchId);
+      const data = await window.electronAPI.getStudents(
+        branchId,
+        selectedYear?.id || null
+      );
       setStudentsList(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Error fetching students:", e);
@@ -67,7 +72,7 @@ const EditFeesModal = ({
     } finally {
       setStudentsLoading(false);
     }
-  }, []);
+  }, [selectedYear?.id]);
 
   // Search students with debounce (same approach as Add)
   const searchStudents = useCallback(
@@ -79,10 +84,17 @@ const EditFeesModal = ({
       setStudentsLoading(true);
       try {
         if (window?.electronAPI?.searchStudents) {
-          const data = await window.electronAPI.searchStudents(branchId, query);
+          const data = await window.electronAPI.searchStudents(
+            branchId,
+            query,
+            selectedYear?.id || null
+          );
           setStudentsList(Array.isArray(data) ? data : []);
         } else {
-          const allStudents = await window.electronAPI.getStudents(branchId);
+          const allStudents = await window.electronAPI.getStudents(
+            branchId,
+            selectedYear?.id || null
+          );
           const arr = Array.isArray(allStudents) ? allStudents : [];
           const lower = query.toLowerCase();
           const filtered = arr.filter((s) => {
@@ -104,7 +116,7 @@ const EditFeesModal = ({
         setStudentsLoading(false);
       }
     },
-    [fetchStudents]
+    [fetchStudents, selectedYear?.id]
   );
 
   // Seed initial form from feesRecord
@@ -134,7 +146,8 @@ const EditFeesModal = ({
       if (!selectedBranch?.id || !open) return;
       try {
         const result = await window.electronAPI.getStudentsForFees(
-          selectedBranch.id
+          selectedBranch.id,
+          selectedYear?.id || null
         );
         if (result.success) {
           setStudents(result.students);
@@ -147,7 +160,7 @@ const EditFeesModal = ({
       }
     };
     fetchStudents();
-  }, [selectedBranch?.id, open, setError]);
+  }, [selectedBranch?.id, selectedYear?.id, open, setError]);
 
   // Initialize Autocomplete list from existing students or fetch all
   useEffect(() => {
@@ -208,6 +221,7 @@ const EditFeesModal = ({
       const payload = {
         ...formData,
         branch_id: selectedBranch?.id,
+        academic_year_id: selectedYear?.id || null,
         amount: parseFloat(formData.amount),
         cheque_number:
           formData.payment_type === "cash" ? null : formData.cheque_number,

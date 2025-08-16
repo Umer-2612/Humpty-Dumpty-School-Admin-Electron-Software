@@ -21,6 +21,9 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import NotesIcon from "@mui/icons-material/Notes";
 import QrCodeIcon from "@mui/icons-material/QrCode";
+import { useYear } from "../../context/YearProvider.jsx";
+import IconButton from "@mui/material/IconButton";
+import CloseIcon from "@mui/icons-material/Close";
 
 const AddFeesModal = ({
   open,
@@ -36,6 +39,7 @@ const AddFeesModal = ({
   setLoading,
 }) => {
   const { selected: selectedBranch } = useBranch?.() || {};
+  const { selected: selectedYear } = useYear();
   const [studentsList, setStudentsList] = React.useState([]);
   const [studentsLoading, setStudentsLoading] = React.useState(false);
   const [studentSearch, setStudentSearch] = React.useState("");
@@ -48,7 +52,10 @@ const AddFeesModal = ({
     if (!window?.electronAPI?.getStudents) return;
     setStudentsLoading(true);
     try {
-      const data = await window.electronAPI.getStudents(branchId);
+      const data = await window.electronAPI.getStudents(
+        branchId,
+        selectedYear?.id || null
+      );
       setStudentsList(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Error fetching students:", e);
@@ -56,7 +63,7 @@ const AddFeesModal = ({
     } finally {
       setStudentsLoading(false);
     }
-  }, []);
+  }, [selectedYear?.id]);
 
   // Search students with debounce
   const searchStudents = React.useCallback(
@@ -69,13 +76,20 @@ const AddFeesModal = ({
 
       setStudentsLoading(true);
       try {
-        if (window?.electronAPI?.searchStudents) {
+        if (window?.electronAPI?.searchStudentsByYear) {
           // Use backend search if available
-          const data = await window.electronAPI.searchStudents(branchId, query);
+          const data = await window.electronAPI.searchStudentsByYear(
+            branchId,
+            query,
+            selectedYear?.id || null
+          );
           setStudentsList(Array.isArray(data) ? data : []);
         } else {
           // Fallback to client-side filtering
-          const allStudents = await window.electronAPI.getStudents(branchId);
+          const allStudents = await window.electronAPI.getStudents(
+            branchId,
+            selectedYear?.id || null
+          );
           const students = Array.isArray(allStudents) ? allStudents : [];
           const lower = query.toLowerCase();
           const filtered = students.filter((s) => {
@@ -97,7 +111,7 @@ const AddFeesModal = ({
         setStudentsLoading(false);
       }
     },
-    [fetchStudents]
+    [fetchStudents, selectedYear?.id]
   );
 
   // Initial load
@@ -107,7 +121,7 @@ const AddFeesModal = ({
     } else {
       fetchStudents(selectedBranch?.id);
     }
-  }, [students, selectedBranch?.id, fetchStudents]);
+  }, [students, selectedBranch?.id, selectedYear?.id, fetchStudents]);
 
   // Debounced search effect
   React.useEffect(() => {
@@ -124,7 +138,7 @@ const AddFeesModal = ({
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [studentSearch, dropdownOpen, selectedBranch?.id, searchStudents]);
+  }, [studentSearch, dropdownOpen, selectedBranch?.id, selectedYear?.id, searchStudents]);
 
   // Local fallback state if parent didn't pass setFormData
   const [internalData, setInternalData] = React.useState(formData || {});
@@ -220,7 +234,7 @@ const AddFeesModal = ({
         bank_name: paymentType === "cheque" ? data?.bank_name || null : null,
         payee_name: data?.payee_name || "",
         payment_date: data?.payment_date || today,
-        academic_year: data?.academic_year || null,
+        academic_year_id: selectedYear?.id || null,
         month_year: data?.month_year || null,
         notes: data?.notes || null,
       };
@@ -359,6 +373,9 @@ const AddFeesModal = ({
                           top: 0,
                           zIndex: 1,
                           bgcolor: "background.paper",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
                         }}
                         onMouseDown={(e) => {
                           e.stopPropagation();
@@ -383,6 +400,22 @@ const AddFeesModal = ({
                           }}
                           autoFocus
                         />
+                        <IconButton
+                          aria-label="clear and close"
+                          size="small"
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Clear selected value and search, then close dropdown
+                            setData({ student_id: "" });
+                            setStudentSearch("");
+                            setDropdownOpen(false);
+                          }}
+                        >
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
                       </Box>
                       {/* Options list */}
                       <Box sx={{ maxHeight: 240, overflow: "auto" }}>

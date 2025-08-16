@@ -11,9 +11,9 @@ const generateReceiptNumber = () => {
   return `REC${timestamp}${random}`;
 };
 
-// Get all fees records with student and branch details
-const getFees = (branchId, callback) => {
-  console.log("🟡 [BACKEND] Getting fees for branch:", branchId);
+// Get all fees records with student and branch details (optionally by academic year)
+const getFees = (branchId, academicYearId, callback) => {
+  console.log("🟡 [BACKEND] Getting fees for branch:", branchId, "year:", academicYearId);
   
   const query = `
     SELECT 
@@ -27,10 +27,11 @@ const getFees = (branchId, callback) => {
     JOIN classes c ON s.class_id = c.id
     JOIN branches b ON f.branch_id = b.id
     WHERE f.branch_id = ?
+      AND (? IS NULL OR f.academic_year_id = ?)
     ORDER BY f.created_at DESC
   `;
   
-  db.all(query, [branchId], (err, rows) => {
+  db.all(query, [branchId, academicYearId ?? null, academicYearId ?? null], (err, rows) => {
     if (err) {
       console.error("🔴 [BACKEND] Error fetching fees:", err);
       callback(err, null);
@@ -50,15 +51,16 @@ const addFees = (feesData, callback) => {
   
   const query = `
     INSERT INTO fees (
-      student_id, branch_id, amount, payment_type, cheque_number, 
+      student_id, branch_id, academic_year_id, amount, payment_type, cheque_number, 
       bank_name, payee_name, receipt_number, payment_date, 
       academic_year, month_year, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   
   const params = [
     feesData.student_id,
     feesData.branch_id,
+    feesData.academic_year_id || null,
     feesData.amount,
     feesData.payment_type,
     feesData.cheque_number || null,
@@ -108,7 +110,7 @@ const updateFees = (id, feesData, callback) => {
     UPDATE fees SET 
       student_id = ?, amount = ?, payment_type = ?, cheque_number = ?, 
       bank_name = ?, payee_name = ?, payment_date = ?, 
-      academic_year = ?, month_year = ?, notes = ?
+      academic_year = ?, month_year = ?, notes = ?, academic_year_id = ?
     WHERE id = ?
   `;
   
@@ -123,6 +125,7 @@ const updateFees = (id, feesData, callback) => {
     feesData.academic_year || null,
     feesData.month_year || null,
     feesData.notes || null,
+    feesData.academic_year_id || null,
     id
   ];
   
@@ -152,9 +155,9 @@ const deleteFees = (id, callback) => {
   });
 };
 
-// Get students for dropdown (branch-wise)
-const getStudentsForFees = (branchId, callback) => {
-  console.log("🟡 [BACKEND] Getting students for fees dropdown, branch:", branchId);
+// Get students for dropdown (branch-wise, optionally by academic year)
+const getStudentsForFees = (branchId, academicYearId, callback) => {
+  console.log("🟡 [BACKEND] Getting students for fees dropdown, branch:", branchId, "year:", academicYearId);
   
   const query = `
     SELECT 
@@ -165,10 +168,11 @@ const getStudentsForFees = (branchId, callback) => {
     FROM students s
     JOIN classes c ON s.class_id = c.id
     WHERE c.branch_id = ?
+      AND (? IS NULL OR s.academic_year_id = ?)
     ORDER BY c.name, s.roll_number
   `;
   
-  db.all(query, [branchId], (err, rows) => {
+  db.all(query, [branchId, academicYearId ?? null, academicYearId ?? null], (err, rows) => {
     if (err) {
       console.error("🔴 [BACKEND] Error fetching students for fees:", err);
       callback(err, null);

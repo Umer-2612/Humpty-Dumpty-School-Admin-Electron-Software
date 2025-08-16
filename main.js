@@ -44,6 +44,13 @@ const {
   updateClassShift,
   deleteClassShift,
 } = require("./server/class_shifts");
+const {
+  listAcademicYears,
+  addAcademicYear,
+  updateAcademicYear,
+  setActiveAcademicYear,
+  getActiveAcademicYear,
+} = require("./server/academic_years");
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -66,6 +73,48 @@ app.whenReady().then(() => {
   createWindow();
 });
 
+// Academic Years IPC handlers (top-level)
+ipcMain.handle("list-academic-years", async () => {
+  try {
+    return await listAcademicYears();
+  } catch (error) {
+    console.error("[main.js] Error in 'list-academic-years':", error);
+    return [];
+  }
+});
+ipcMain.handle("add-academic-year", async (event, payload) => {
+  try {
+    return await addAcademicYear(payload);
+  } catch (error) {
+    console.error("[main.js] Error in 'add-academic-year':", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("update-academic-year", async (event, payload) => {
+  try {
+    return await updateAcademicYear(payload);
+  } catch (error) {
+    console.error("[main.js] Error in 'update-academic-year':", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("set-active-academic-year", async (event, id) => {
+  try {
+    return await setActiveAcademicYear(id);
+  } catch (error) {
+    console.error("[main.js] Error in 'set-active-academic-year':", error);
+    return { success: false, error: error.message };
+  }
+});
+ipcMain.handle("get-active-academic-year", async () => {
+  try {
+    return await getActiveAcademicYear();
+  } catch (error) {
+    console.error("[main.js] Error in 'get-active-academic-year':", error);
+    return null;
+  }
+});
+
 // IPC handlers
 ipcMain.handle("get-branches", async () => {
   console.log("[main.js] IPC handler 'get-branches' invoked.");
@@ -79,10 +128,10 @@ ipcMain.handle("get-branches", async () => {
   }
 });
 
-ipcMain.handle("get-students", async (event, branch_id) => {
-  console.log("[main.js] IPC handler 'get-students' invoked.", branch_id);
+ipcMain.handle("get-students", async (event, branch_id, academicYearId = null) => {
+  console.log("[main.js] IPC handler 'get-students' invoked.", branch_id, academicYearId);
   try {
-    const students = await getStudents(branch_id);
+    const students = await getStudents(branch_id, academicYearId);
     return students;
   } catch (error) {
     console.error("[main.js] Error in 'get-students' handler:", error);
@@ -90,10 +139,10 @@ ipcMain.handle("get-students", async (event, branch_id) => {
   }
 });
 
-ipcMain.handle("search-students", async (event, branch_id, query) => {
-  console.log("[main.js] IPC handler 'search-students' invoked.", branch_id, query);
+ipcMain.handle("search-students", async (event, branch_id, query, academicYearId = null) => {
+  console.log("[main.js] IPC handler 'search-students' invoked.", branch_id, query, academicYearId);
   try {
-    const students = await searchStudents(branch_id, query);
+    const students = await searchStudents(branch_id, query, academicYearId);
     return students;
   } catch (error) {
     console.error("[main.js] Error in 'search-students' handler:", error);
@@ -346,9 +395,9 @@ ipcMain.handle("delete-transport", async (event, id) => {
 });
 
 // Fees IPC handlers
-ipcMain.handle("get-fees", async (event, branchId) => {
+ipcMain.handle("get-fees", async (event, branchId, academicYearId = null) => {
   return new Promise((resolve) => {
-    getFees(branchId, (err, fees) => {
+    getFees(branchId, academicYearId, (err, fees) => {
       if (err) {
         console.error("[main.js] Error in 'get-fees' handler:", err);
         resolve({ success: false, error: err.message });
@@ -398,9 +447,9 @@ ipcMain.handle("delete-fees", async (event, id) => {
   });
 });
 
-ipcMain.handle("get-students-for-fees", async (event, branchId) => {
+ipcMain.handle("get-students-for-fees", async (event, branchId, academicYearId = null) => {
   return new Promise((resolve) => {
-    getStudentsForFees(branchId, (err, students) => {
+    getStudentsForFees(branchId, academicYearId, (err, students) => {
       if (err) {
         console.error("[main.js] Error in 'get-students-for-fees' handler:", err);
         resolve({ success: false, error: err.message });

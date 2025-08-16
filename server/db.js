@@ -23,6 +23,65 @@ db.serialize(() => {
     );
   `);
 
+  // Academic Years table (global)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS academic_years (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,          -- e.g. '2025-26'
+      start_date TEXT NOT NULL,           -- ISO date
+      end_date TEXT NOT NULL,             -- ISO date
+      is_active INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  // Seed a default academic year if none exist
+  db.get(`SELECT COUNT(*) as cnt FROM academic_years`, (err, row) => {
+    if (err) {
+      console.warn("[db.js] Failed to count academic_years:", err);
+      return;
+    }
+    if (row && row.cnt === 0) {
+      try {
+        const now = new Date();
+        // Academic year starting April 1st by default
+        const startYear =
+          now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const endYear = startYear + 1;
+        const name = `${startYear}-${String(endYear).slice(-2)}`; // e.g. 2025-26
+        const start_date = `${startYear}-04-01`;
+        const end_date = `${endYear}-03-31`;
+        db.run(
+          `INSERT OR IGNORE INTO academic_years (name, start_date, end_date, is_active) VALUES (?, ?, ?, 1)`,
+          [name, start_date, end_date],
+          (insErr) => {
+            if (insErr) {
+              console.warn(
+                "[db.js] Failed to seed default academic year:",
+                insErr
+              );
+            } else {
+              console.log("[db.js] Seeded default academic year:", {
+                name,
+                start_date,
+                end_date,
+              });
+            }
+            // Ensure exactly one active academic year (the generated name)
+            db.run(
+              `UPDATE academic_years SET is_active = CASE WHEN name = ? THEN 1 ELSE 0 END`,
+              [name]
+            );
+          }
+        );
+      } catch (e) {
+        console.warn(
+          "[db.js] Exception while seeding default academic year",
+          e
+        );
+      }
+    }
+  });
+
   // Remove old divisions table if present
   db.run(`DROP TABLE IF EXISTS divisions;`);
 
@@ -98,6 +157,7 @@ db.serialize(() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       student_id INTEGER NOT NULL,
       branch_id INTEGER NOT NULL,
+      academic_year_id INTEGER,
       amount DECIMAL(10,2) NOT NULL,
       payment_type TEXT NOT NULL CHECK (payment_type IN ('cash', 'cheque', 'upi')),
       cheque_number TEXT,
@@ -110,7 +170,8 @@ db.serialize(() => {
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (student_id) REFERENCES students (id),
-      FOREIGN KEY (branch_id) REFERENCES branches (id)
+      FOREIGN KEY (branch_id) REFERENCES branches (id),
+      FOREIGN KEY (academic_year_id) REFERENCES academic_years (id)
     );
   `);
 
@@ -134,6 +195,7 @@ db.serialize(() => {
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               student_id INTEGER NOT NULL,
               branch_id INTEGER NOT NULL,
+              academic_year_id INTEGER,
               amount DECIMAL(10,2) NOT NULL,
               payment_type TEXT NOT NULL CHECK (payment_type IN ('cash', 'cheque', 'upi')),
               cheque_number TEXT,
@@ -146,16 +208,17 @@ db.serialize(() => {
               notes TEXT,
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               FOREIGN KEY (student_id) REFERENCES students (id),
-              FOREIGN KEY (branch_id) REFERENCES branches (id)
+              FOREIGN KEY (branch_id) REFERENCES branches (id),
+              FOREIGN KEY (academic_year_id) REFERENCES academic_years (id)
             );
           `);
           // Copy data
           db.run(`
             INSERT INTO fees_new (
-              id, student_id, branch_id, amount, payment_type, cheque_number, bank_name,
+              id, student_id, branch_id, academic_year_id, amount, payment_type, cheque_number, bank_name,
               payee_name, receipt_number, payment_date, academic_year, month_year, notes, created_at
             )
-            SELECT id, student_id, branch_id, amount, payment_type, cheque_number, bank_name,
+            SELECT id, student_id, branch_id, NULL as academic_year_id, amount, payment_type, cheque_number, bank_name,
                    payee_name, receipt_number, payment_date, academic_year, month_year, notes, created_at
             FROM fees;
           `);
@@ -197,18 +260,27 @@ db.serialize(() => {
         db.run(
           `UPDATE students SET admission_end_date = class_last_date WHERE class_last_date IS NOT NULL`
         );
-        // Note: SQLite doesn't support DROP COLUMN, so we leave the old column
+        // Note: SQLite doesn't support DROP COLUMN; we keep class_last_date
       }
-    }
-  });
-  db.all("PRAGMA table_info(students)", (err, columns) => {
-    if (!err && columns) {
-      const existing = columns.map((col) => col.name);
+      // Ensure academic_year_id exists on students
+      if (!existing.includes("academic_year_id")) {
+        db.run(`ALTER TABLE students ADD COLUMN academic_year_id INTEGER`);
+      }
       studentColumns.forEach((col) => {
         if (!existing.includes(col.name)) {
           db.run(`ALTER TABLE students ADD COLUMN ${col.name} ${col.type}`);
         }
       });
+    }
+  });
+
+  // Ensure academic_year_id in fees table exists (for older installs that already had new payment_type migration)
+  db.all("PRAGMA table_info(fees)", (err, columns) => {
+    if (!err && columns) {
+      const existing = columns.map((c) => c.name);
+      if (!existing.includes("academic_year_id")) {
+        db.run(`ALTER TABLE fees ADD COLUMN academic_year_id INTEGER`);
+      }
     }
   });
 
@@ -353,8 +425,12 @@ db.serialize(() => {
   // Seed branches if empty
   db.get("SELECT COUNT(*) as count FROM branches", (err, row) => {
     if (row.count === 0) {
-      db.run(`INSERT INTO branches (name) VALUES ('Kindergarden')`);
-      db.run(`INSERT INTO branches (name) VALUES ('Charitable Trust')`);
+      db.run(
+        `INSERT INTO branches (name) VALUES ('Humpty Dumpty Kindergarden')`
+      );
+      db.run(
+        `INSERT INTO branches (name) VALUES ('Humpty Dumpty Charitable Trust')`
+      );
     }
   });
 
@@ -370,11 +446,30 @@ db.serialize(() => {
     }
   });
 
+  // Seed default academic year if none exists
+  db.get("SELECT COUNT(*) as count FROM academic_years", (err, row) => {
+    if (!err && row && row.count === 0) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1; // 1-12
+      // Academic year June -> May
+      const startYear = month >= 6 ? year : year - 1;
+      const endYear = startYear + 1;
+      const name = `${startYear}-${String(endYear).slice(-2)}`;
+      const start_date = `${startYear}-06-01`;
+      const end_date = `${endYear}-05-31`;
+      db.run(
+        `INSERT INTO academic_years (name, start_date, end_date, is_active) VALUES (?, ?, ?, 1)`,
+        [name, start_date, end_date]
+      );
+    }
+  });
+
   // Seed classes if empty
   db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {
     if (row.count === 0) {
-      // Humpty Dumpty Kindergarden classes
-      const kindergardenFees = JSON.stringify({ term1: 9000, term2: 9000 });
+      // Humpty Dumpty Day Care classes
+      const dayCareFees = JSON.stringify({ term1: 9000, term2: 9000 });
       const juniorKgFees = JSON.stringify({ term1: 10000, term2: 10000 });
 
       // Humpty Dumpty Charitable Trust classes
@@ -383,21 +478,21 @@ db.serialize(() => {
 
       // Insert classes for Humpty Dumpty Kindergarden (branch_id = 1)
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Kindergarden', ?)`,
-        kindergardenFees
+        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Day Care', ?)`,
+        dayCareFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Junior Kg', ?)`,
+        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Junior Kg', ?)`,
         juniorKgFees
       );
 
       // Insert classes for Humpty Dumpty Charitable Trust (branch_id = 2)
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Senior Kg', ?)`,
+        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Senior Kg', ?)`,
         seniorKgFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees) VALUES (2, 'Bal Vatika', ?)`,
+        `INSERT INTO classes (branch_id, name, fees) VALUES (1, 'Bal Vatika', ?)`,
         balVatikaFees
       );
     }

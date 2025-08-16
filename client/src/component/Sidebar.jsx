@@ -27,6 +27,7 @@ import {
   ChevronRight as ChevronRightIcon,
   LibraryBooks as LibraryBooksIcon,
 } from "@mui/icons-material";
+import YearSwitcher from "./YearSwitcher";
 
 const menuItems = [
   { label: "Dashboard", icon: HomeIcon },
@@ -37,7 +38,7 @@ const menuItems = [
   { label: "Fees", icon: BookIcon },
 ];
 
-const drawerWidth = 240;
+const drawerWidth = 250;
 const collapsedDrawerWidth = 80;
 
 export default function Sidebar({ activePage, setActivePage }) {
@@ -121,6 +122,9 @@ export default function Sidebar({ activePage, setActivePage }) {
               ))}
             </Select>
           </FormControl>
+          <Box sx={{ mt: 2 }}>
+            <YearSwitcher compact inverted />
+          </Box>
         </Box>
       )}
 

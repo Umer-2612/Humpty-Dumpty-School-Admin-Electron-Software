@@ -5,9 +5,34 @@ import MainContent from "./component/MainContent";
 import { Box } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "./theme";
+import YearSwitcher from "./component/YearSwitcher";
+import { useYear } from "./context/YearProvider.jsx";
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
+  const { hasChosenYear, loading: yearLoading } = useYear();
+
+  // Gate: Require explicit year selection before app loads
+  if (yearLoading || !hasChosenYear) {
+    return (
+      <ThemeProvider theme={theme}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            bgcolor: theme.palette.background.default,
+            p: 3,
+          }}
+        >
+          <Box sx={{ width: 360, maxWidth: "90vw" }}>
+            <YearSwitcher compact={false} />
+          </Box>
+        </Box>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>

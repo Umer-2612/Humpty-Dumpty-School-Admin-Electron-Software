@@ -2,9 +2,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   getBranches: () => ipcRenderer.invoke("get-branches"),
-  getStudents: (branch_id) => ipcRenderer.invoke("get-students", branch_id),
+  getStudents: (branch_id, academicYearId = null) =>
+    ipcRenderer.invoke("get-students", branch_id, academicYearId),
   searchStudents: (branch_id, query) =>
-    ipcRenderer.invoke("search-students", branch_id, query),
+    ipcRenderer.invoke("search-students", branch_id, query, null),
+  searchStudentsByYear: (branch_id, query, academicYearId = null) =>
+    ipcRenderer.invoke("search-students", branch_id, query, academicYearId),
   addStudent: (studentData) => ipcRenderer.invoke("add-student", studentData),
   updateStudent: (studentData) =>
     ipcRenderer.invoke("update-student", studentData),
@@ -37,12 +40,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("update-transport", transportData),
   deleteTransport: (id) => ipcRenderer.invoke("delete-transport", id),
   // Fees API methods
-  getFees: (branchId) => ipcRenderer.invoke("get-fees", branchId),
+  getFees: (branchId, academicYearId = null) =>
+    ipcRenderer.invoke("get-fees", branchId, academicYearId),
   addFees: (feesData) => ipcRenderer.invoke("add-fees", feesData),
   updateFees: (feesData) => ipcRenderer.invoke("update-fees", feesData),
   deleteFees: (id) => ipcRenderer.invoke("delete-fees", id),
-  getStudentsForFees: (branchId) =>
-    ipcRenderer.invoke("get-students-for-fees", branchId),
+  getStudentsForFees: (branchId, academicYearId = null) =>
+    ipcRenderer.invoke("get-students-for-fees", branchId, academicYearId),
   getFeesReceipt: (receiptNumber) =>
     ipcRenderer.invoke("get-fees-receipt", receiptNumber),
+
+  // Academic Year API methods
+  listAcademicYears: () => ipcRenderer.invoke("list-academic-years"),
+  addAcademicYear: (payload) => ipcRenderer.invoke("add-academic-year", payload),
+  updateAcademicYear: (payload) => ipcRenderer.invoke("update-academic-year", payload),
+  setActiveAcademicYear: (id) => ipcRenderer.invoke("set-active-academic-year", id),
+  getActiveAcademicYear: () => ipcRenderer.invoke("get-active-academic-year"),
 });

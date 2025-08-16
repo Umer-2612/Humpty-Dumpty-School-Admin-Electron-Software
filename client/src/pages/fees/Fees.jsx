@@ -18,6 +18,7 @@ import QrCodeIcon from "@mui/icons-material/QrCode";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import { useBranch } from "../../context/useBranch";
+import { useYear } from "../../context/YearProvider.jsx";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 
@@ -25,6 +26,7 @@ const SETTINGS_KEY = "feesTableSettings";
 
 const Fees = () => {
   const { selected: selectedBranch } = useBranch();
+  const { selected: selectedYear } = useYear();
   const [fees, setFees] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -317,7 +319,10 @@ const Fees = () => {
 
     setLoading(true);
     try {
-      const result = await window.electronAPI.getFees(selectedBranch.id);
+      const result = await window.electronAPI.getFees(
+        selectedBranch.id,
+        selectedYear?.id || null
+      );
       if (result.success) {
         setFees(result.fees);
       } else {
@@ -329,11 +334,11 @@ const Fees = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch?.id]);
+  }, [selectedBranch?.id, selectedYear?.id]);
 
   useEffect(() => {
     fetchFees();
-  }, [fetchFees]);
+  }, [fetchFees, selectedYear?.id]);
 
   const handleEditClick = (feesRecord) => {
     setEditingFees(feesRecord);

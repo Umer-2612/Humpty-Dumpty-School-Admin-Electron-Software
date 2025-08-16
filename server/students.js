@@ -1,10 +1,11 @@
 const db = require("./db");
 
-// Get all students with class information, optionally filtered by branch_id
-function getStudents(branch_id) {
+// Get all students with class information, optionally filtered by branch_id and academic year
+function getStudents(branch_id, academicYearId = null) {
   console.log(
     "[server/students.js] getStudents() called",
-    branch_id ? `with branch_id=${branch_id}` : ""
+    branch_id ? `with branch_id=${branch_id}` : "",
+    academicYearId ? `year=${academicYearId}` : ""
   );
   return new Promise((resolve, reject) => {
     let query = `
@@ -13,6 +14,7 @@ function getStudents(branch_id) {
         s.name,
         s.roll_number,
         s.class_id,
+        s.academic_year_id,
         s.total_fees,
         s.pending_fees,
         s.shift_id,
@@ -36,9 +38,17 @@ function getStudents(branch_id) {
       JOIN branches b ON c.branch_id = b.id
     `;
     let params = [];
+    const conditions = [];
     if (branch_id) {
-      query += " WHERE b.id = ?";
+      conditions.push("b.id = ?");
       params.push(branch_id);
+    }
+    if (academicYearId) {
+      conditions.push("s.academic_year_id = ?");
+      params.push(academicYearId);
+    }
+    if (conditions.length) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
     }
     query += " ORDER BY s.created_at DESC";
     db.all(query, params, (err, rows) => {
@@ -77,12 +87,13 @@ function getNextRollNumber(class_id, shift_id) {
   });
 }
 
-// Search students by name, roll number, or class within an optional branch
-function searchStudents(branch_id, query) {
+// Search students by name, roll number, or class within an optional branch and academic year
+function searchStudents(branch_id, query, academicYearId = null) {
   console.log(
     "[server/students.js] searchStudents() called",
     branch_id ? `with branch_id=${branch_id}` : "",
-    `query=${query}`
+    `query=${query}`,
+    academicYearId ? `year=${academicYearId}` : ""
   );
   return new Promise((resolve, reject) => {
     const q = `%${(query || "").trim()}%`;
@@ -92,6 +103,7 @@ function searchStudents(branch_id, query) {
         s.name,
         s.roll_number,
         s.class_id,
+        s.academic_year_id,
         c.name as class_name,
         b.name as branch_name,
         b.id as branch_id
@@ -106,6 +118,10 @@ function searchStudents(branch_id, query) {
     if (branch_id) {
       sql += " AND b.id = ?";
       params.push(branch_id);
+    }
+    if (academicYearId) {
+      sql += " AND s.academic_year_id = ?";
+      params.push(academicYearId);
     }
     sql += " ORDER BY s.name ASC LIMIT 50";
     db.all(sql, params, (err, rows) => {
@@ -128,6 +144,7 @@ function addStudent(studentData) {
       roll_number,
       class_id,
       shift_id,
+      academic_year_id,
       parents_contact1,
       parents_contact2,
       admission_date,
@@ -189,53 +206,67 @@ function addStudent(studentData) {
               
               console.log(`[server/students.js] Fee calculation: total=${total_fees_calc}, scholarship=${scholarshipAmount}, pending=${pending_fees_init}`);
 
-              db.run(
-                `
-                INSERT INTO students (
-                  name, roll_number, class_id, shift_id, parents_contact1, parents_contact2,
-                  admission_date, admission_end_date, gender, mother_name, father_name,
-                  fee_scholarship, birth_place, religion, address, total_fees, pending_fees
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `,
-                [
-                  name,
-                  roll_number,
-                  class_id,
-                  shift_id,
-                  parents_contact1,
-                  parents_contact2,
-                  admission_date,
-                  admission_end_date,
-                  gender,
-                  mother_name,
-                  father_name,
-                  fee_scholarship,
-                  birth_place,
-                  religion,
-                  address,
-                  total_fees_calc,
-                  pending_fees_init,
-                ],
-                function (err) {
-                  if (err) {
-                    console.error(
-                      "[server/students.js] Error adding student:",
-                      err
-                    );
-                    reject(err);
-                  } else {
-                    console.log(
-                      "[server/students.js] Student added with ID:",
-                      this.lastID
-                    );
-                    resolve({
-                      id: this.lastID,
-                      ...studentData,
-                      total_fees: total_fees_calc,
-                      pending_fees: pending_fees_init,
-                    });
+              // Determine academic year id (use provided or active year)
+              db.get(
+                `SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1`,
+                [],
+                (yearErr, yearRow) => {
+                  if (yearErr) {
+                    console.warn("[server/students.js] Failed to get active academic year, proceeding with null", yearErr);
                   }
+                  const yearIdToUse = academic_year_id || (yearRow && yearRow.id) || null;
+
+                  db.run(
+                    `
+                    INSERT INTO students (
+                      name, roll_number, class_id, shift_id, academic_year_id, parents_contact1, parents_contact2,
+                      admission_date, admission_end_date, gender, mother_name, father_name,
+                      fee_scholarship, birth_place, religion, address, total_fees, pending_fees
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `,
+                    [
+                      name,
+                      roll_number,
+                      class_id,
+                      shift_id,
+                      yearIdToUse,
+                      parents_contact1,
+                      parents_contact2,
+                      admission_date,
+                      admission_end_date,
+                      gender,
+                      mother_name,
+                      father_name,
+                      fee_scholarship,
+                      birth_place,
+                      religion,
+                      address,
+                      total_fees_calc,
+                      pending_fees_init,
+                    ],
+                    function (err) {
+                      if (err) {
+                        console.error(
+                          "[server/students.js] Error adding student:",
+                          err
+                        );
+                        reject(err);
+                      } else {
+                        console.log(
+                          "[server/students.js] Student added with ID:",
+                          this.lastID
+                        );
+                        resolve({
+                          id: this.lastID,
+                          ...studentData,
+                          academic_year_id: yearIdToUse,
+                          total_fees: total_fees_calc,
+                          pending_fees: pending_fees_init,
+                        });
+                      }
+                    }
+                  );
                 }
               );
             }

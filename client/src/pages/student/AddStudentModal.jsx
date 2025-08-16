@@ -9,6 +9,7 @@ import { teal } from "@mui/material/colors";
 import PersonIcon from "@mui/icons-material/Person";
 import StudentForm from "./StudentForm";
 import Modal from "../../component/Modal";
+import { useYear } from "../../context/YearProvider.jsx";
 
 const AddStudentModal = ({
   open,
@@ -19,6 +20,7 @@ const AddStudentModal = ({
   setError,
   setLoading,
 }) => {
+  const { selected: selectedYear } = useYear();
   const [form, setForm] = useState({
     name: "",
     roll_number: "",
@@ -116,7 +118,8 @@ const AddStudentModal = ({
     setLoading(true);
     setError("");
     try {
-      const res = await window.electronAPI.addStudent(form);
+      const payload = { ...form, academic_year_id: selectedYear?.id || null };
+      const res = await window.electronAPI.addStudent(payload);
       if (res.success) {
         setForm({
           name: "",

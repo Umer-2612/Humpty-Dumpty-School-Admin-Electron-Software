@@ -19,6 +19,7 @@ import LocationOnIcon from "@mui/icons-material/LocationOn";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import { useBranch } from "../../context/useBranch";
+import { useYear } from "../../context/YearProvider.jsx";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import ViewStudentModal from "./ViewStudentModal";
@@ -27,6 +28,7 @@ const SETTINGS_KEY = "studentsTableSettings";
 
 const Students = () => {
   const { selected: selectedBranch } = useBranch();
+  const { selected: selectedYear } = useYear();
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -331,14 +333,17 @@ const Students = () => {
   const fetchStudents = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await window.electronAPI.getStudents(selectedBranch?.id);
+      const data = await window.electronAPI.getStudents(
+        selectedBranch?.id,
+        selectedYear?.id || null
+      );
       setStudents(data);
     } catch (err) {
       setError("Failed to fetch students", err);
     } finally {
       setLoading(false);
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, selectedYear]);
 
   const fetchClasses = useCallback(async (branch_id) => {
     try {
@@ -360,7 +365,7 @@ const Students = () => {
 
   useEffect(() => {
     fetchStudents();
-  }, [fetchStudents, selectedBranch]);
+  }, [fetchStudents, selectedBranch, selectedYear]);
 
   useEffect(() => {
     if (selectedBranch?.id) {
