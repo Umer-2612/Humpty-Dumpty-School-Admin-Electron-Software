@@ -389,14 +389,41 @@ db.serialize(() => {
     );
   `);
 
-  // Class Shifts table
+  // Class Shifts table (start_time/end_time in AM/PM format)
   db.run(`
     CREATE TABLE IF NOT EXISTS class_shifts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      time TEXT
+      start_time TEXT,
+      end_time TEXT
     );
   `);
+
+  // Migration: add start_time/end_time if the table exists with legacy 'time' column
+  db.all(`PRAGMA table_info(class_shifts);`, (err, columns) => {
+    if (err) {
+      console.error("[db] Failed to inspect class_shifts table:", err);
+      return;
+    }
+    const colNames = (columns || []).map((c) => c.name);
+    const hasLegacyTime = colNames.includes("time");
+    const hasStart = colNames.includes("start_time");
+    const hasEnd = colNames.includes("end_time");
+
+    const addCols = [];
+    if (!hasStart)
+      addCols.push(`ALTER TABLE class_shifts ADD COLUMN start_time TEXT`);
+    if (!hasEnd)
+      addCols.push(`ALTER TABLE class_shifts ADD COLUMN end_time TEXT`);
+    if (addCols.length) {
+      addCols.forEach((sql) => db.run(sql));
+    }
+
+    // If legacy 'time' exists and start_time is null, migrate values to start_time
+    if (hasLegacyTime) {
+      db.run(`UPDATE class_shifts SET start_time = COALESCE(start_time, time)`);
+    }
+  });
 
   // Join table for teacher-class-shift assignments
   db.run(`
@@ -437,15 +464,13 @@ db.serialize(() => {
   db.get("SELECT COUNT(*) as count FROM class_shifts", (err, row) => {
     if (row.count === 0) {
       db.run(
-        `INSERT INTO class_shifts (name, time) VALUES ('Morning', '8:00 AM')`
+        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Morning', '08:00 AM', '12:00 PM')`
       );
       db.run(
-        `INSERT INTO class_shifts (name, time) VALUES ('Afternoon', '12:00 PM')`
+        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Afternoon', '12:00 PM', '04:00 PM')`
       );
     }
   });
-
-  // (Removed duplicate academic_years seeding block to avoid UNIQUE constraint error)
 
   // Seed classes if empty
   db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Button from "@mui/material/Button";
 import TableWrapper from "../../component/TableWrapper";
 import Paper from "@mui/material/Paper";
@@ -29,13 +29,13 @@ const AcademicSettings = () => {
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+  console.log({ shifts });
+
   // Add serial numbers to classes data
   const classesWithSrNo = classes.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
-
-  console.log({ classes });
 
   const classColumns = [
     {
@@ -155,8 +155,30 @@ const AcademicSettings = () => {
     },
   ];
 
-  // Add serial numbers to shifts data
-  const shiftsWithSrNo = shifts.map((item, index) => ({
+  // Parse "h:mm AM/PM" to minutes since midnight for sorting. Unknown -> very large number (goes to bottom).
+  const parseTimeToMinutes = (t) => {
+    if (!t || typeof t !== "string") return Number.MAX_SAFE_INTEGER;
+    const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!m) return Number.MAX_SAFE_INTEGER;
+    const hh = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    const ap = m[3].toUpperCase();
+    let h = hh % 12;
+    if (ap === "PM") h += 12;
+    return h * 60 + mm;
+  };
+
+  // Sort shifts by start_time ascending by default
+  const sortedShifts = useMemo(() => {
+    return [...(shifts || [])].sort((a, b) => {
+      const aMin = parseTimeToMinutes(a?.start_time);
+      const bMin = parseTimeToMinutes(b?.start_time);
+      return aMin - bMin;
+    });
+  }, [shifts]);
+
+  // Add serial numbers to sorted shifts data
+  const shiftsWithSrNo = sortedShifts.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
@@ -184,12 +206,22 @@ const AcademicSettings = () => {
       ),
     },
     {
-      field: "time",
-      headerName: "Time",
-      width: 150,
+      field: "start_time",
+      headerName: "Start Time",
+      width: 120,
       renderCell: (params) => (
-        <Tooltip title={params.value}>
-          <span>{params.value || "-"}</span>
+        <Tooltip title={params.row?.start_time || "-"}>
+          <span>{params.row?.start_time || "-"}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      field: "end_time",
+      headerName: "End Time",
+      width: 120,
+      renderCell: (params) => (
+        <Tooltip title={params.row?.end_time || "-"}>
+          <span>{params.row?.end_time || "-"}</span>
         </Tooltip>
       ),
     },

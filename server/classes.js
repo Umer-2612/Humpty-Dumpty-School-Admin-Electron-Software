@@ -30,13 +30,13 @@ function getClassesByBranch(branch_id) {
             }
           }
           const total_fees = term1 + term2 + books;
-          return { 
-            ...row, 
+          return {
+            ...row,
             num_divisions: Number(row.num_divisions ?? 0),
-            total_fees, 
-            term1_fee: term1, 
-            term2_fee: term2, 
-            books_charge: books 
+            total_fees,
+            term1_fee: term1,
+            term2_fee: term2,
+            books_charge: books,
           };
         });
         resolve(result);
@@ -46,7 +46,14 @@ function getClassesByBranch(branch_id) {
 }
 
 // Add a new class
-function addClass({ name, branch_id, term1_fee = 0, term2_fee = 0, books_charge = 0, num_divisions = 0 }) {
+function addClass({
+  name,
+  branch_id,
+  term1_fee = 0,
+  term2_fee = 0,
+  books_charge = 0,
+  num_divisions = 0,
+}) {
   return new Promise((resolve, reject) => {
     const term1 = Number(term1_fee) || 0;
     const term2 = Number(term2_fee) || 0;
@@ -59,14 +66,27 @@ function addClass({ name, branch_id, term1_fee = 0, term2_fee = 0, books_charge 
       function (err) {
         if (err) return reject(err);
         const class_id = this.lastID;
-        resolve({ id: class_id, name, branch_id, fees, num_divisions: divisions });
+        resolve({
+          id: class_id,
+          name,
+          branch_id,
+          fees,
+          num_divisions: divisions,
+        });
       }
     );
   });
 }
 
 // Update a class
-function updateClass({ id, name, term1_fee, term2_fee, books_charge, num_divisions }) {
+function updateClass({
+  id,
+  name,
+  term1_fee,
+  term2_fee,
+  books_charge,
+  num_divisions,
+}) {
   return new Promise((resolve, reject) => {
     let updateFields = [];
     let sets = [];

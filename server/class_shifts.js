@@ -6,7 +6,7 @@ function getClassShifts() {
   // take in variable and then return
   const data = new Promise((resolve, reject) => {
     db.all(
-      `SELECT id, name, time FROM class_shifts ORDER BY name`,
+      `SELECT id, name, start_time, end_time FROM class_shifts ORDER BY name`,
       (err, rows) => {
         if (err) reject(err);
         else resolve(rows);
@@ -18,28 +18,28 @@ function getClassShifts() {
 }
 
 // Add a new class shift
-function addClassShift({ name, time }) {
+function addClassShift({ name, start_time, end_time }) {
   return new Promise((resolve, reject) => {
     db.run(
-      `INSERT INTO class_shifts (name, time) VALUES (?, ?)`,
-      [name, time],
+      `INSERT INTO class_shifts (name, start_time, end_time) VALUES (?, ?, ?)`,
+      [name, start_time, end_time],
       function (err) {
         if (err) reject(err);
-        else resolve({ id: this.lastID, name, time });
+        else resolve({ id: this.lastID, name, start_time, end_time });
       }
     );
   });
 }
 
 // Update a class shift
-function updateClassShift({ id, name, time }) {
+function updateClassShift({ id, name, start_time, end_time }) {
   return new Promise((resolve, reject) => {
     db.run(
-      `UPDATE class_shifts SET name = ?, time = ? WHERE id = ?`,
-      [name, time, id],
+      `UPDATE class_shifts SET name = ?, start_time = ?, end_time = ? WHERE id = ?`,
+      [name, start_time, end_time, id],
       function (err) {
         if (err) reject(err);
-        else resolve({ id, name, time });
+        else resolve({ id, name, start_time, end_time });
       }
     );
   });

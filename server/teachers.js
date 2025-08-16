@@ -8,7 +8,13 @@ function getTeachers() {
       (err, teachers) => {
         if (err) return reject(err);
         db.all(
-          `SELECT tcs.teacher_id, c.id as class_id, c.name as class_name, s.id as shift_id, s.name as shift_name, s.time as shift_time
+          `SELECT tcs.teacher_id,
+                  c.id as class_id,
+                  c.name as class_name,
+                  s.id as shift_id,
+                  s.name as shift_name,
+                  s.start_time as start_time,
+                  s.end_time as end_time
            FROM teacher_class_shift tcs
            LEFT JOIN classes c ON tcs.class_id = c.id
            LEFT JOIN class_shifts s ON tcs.shift_id = s.id`,
@@ -44,8 +50,12 @@ function getTeachers() {
                 )
               ) {
                 teacherMap[a.teacher_id].shift_ids.push(a.shift_id.toString());
+                const timeStr =
+                  a.start_time && a.end_time
+                    ? `${a.start_time} - ${a.end_time}`
+                    : a.start_time || a.end_time || "-";
                 teacherMap[a.teacher_id].shift_names.push(
-                  `${a.shift_name} (${a.shift_time})`
+                  `${a.shift_name} (${timeStr})`
                 );
               }
             });

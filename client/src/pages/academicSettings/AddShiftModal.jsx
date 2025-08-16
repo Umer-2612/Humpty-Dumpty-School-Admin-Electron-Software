@@ -18,17 +18,42 @@ const AddShiftModal = ({
   setLoading,
   loading,
 }) => {
-  const [form, setForm] = useState({ name: "", time: "" });
+  const [form, setForm] = useState({ name: "", start_time: "", end_time: "" });
 
   const handleAddShift = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
-      console.log({ form });
-      const res = await window.electronAPI.addClassShift(form);
+      const normalizeAmPm = (value) => {
+        if (!value) return "";
+        const str = String(value).trim();
+        const re =
+          /^(\s*)(1[0-2]|0?[1-9])(?::([0-5][0-9]))?\s*([AaPp][Mm])(\s*)$/;
+        const m = str.match(re);
+        if (!m) return null;
+        const hour = parseInt(m[2], 10);
+        const mm = m[3] ? m[3] : "00";
+        const mer = m[4].toUpperCase();
+        return `${hour}:${mm} ${mer}`;
+      };
+
+      const start = normalizeAmPm(form.start_time);
+      const end = normalizeAmPm(form.end_time);
+      if (!start || !end) {
+        setError(
+          "Please enter Start and End Time in AM/PM format, e.g., 08:00 AM"
+        );
+        return;
+      }
+
+      const res = await window.electronAPI.addClassShift({
+        name: form.name,
+        start_time: start,
+        end_time: end,
+      });
       if (res.success) {
-        setForm({ name: "", time: "" });
+        setForm({ name: "", start_time: "", end_time: "" });
         onSuccess();
       } else {
         setError(res.error || "Failed to add shift");

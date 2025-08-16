@@ -34,16 +34,43 @@ const ShiftForm = ({ form, setForm, isEditing = false }) => {
       </Grid>
       <Grid item xs={12} sm={6}>
         <TextField
-          label="Time"
-          name="time"
-          type="time"
-          value={form.time}
+          label="Start Time (AM/PM)"
+          name="start_time"
+          placeholder="e.g., 08:00 AM"
+          value={form.start_time}
           onChange={handleInputChange}
           fullWidth
           required
           variant="outlined"
           size="small"
-          InputLabelProps={{ shrink: true }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <AccessTimeIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
+          sx={{ bgcolor: "white" }}
+        />
+      </Grid>
+      <Grid item xs={12} sm={6}>
+        <TextField
+          label="End Time (AM/PM)"
+          name="end_time"
+          placeholder="e.g., 12:00 PM"
+          value={form.end_time}
+          onChange={handleInputChange}
+          fullWidth
+          required
+          variant="outlined"
+          size="small"
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <AccessTimeIcon color="action" />
+              </InputAdornment>
+            ),
+          }}
           sx={{ bgcolor: "white" }}
         />
       </Grid>
