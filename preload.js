@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getBranches: () => ipcRenderer.invoke("get-branches"),
   getStudents: (branch_id, academicYearId = null) =>
     ipcRenderer.invoke("get-students", branch_id, academicYearId),
+  getStudentById: (id) => ipcRenderer.invoke("get-student-by-id", id),
   searchStudents: (branch_id, query) =>
     ipcRenderer.invoke("search-students", branch_id, query, null),
   searchStudentsByYear: (branch_id, query, academicYearId = null) =>
@@ -12,8 +13,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateStudent: (studentData) =>
     ipcRenderer.invoke("update-student", studentData),
   deleteStudent: (id) => ipcRenderer.invoke("delete-student", id),
-  getNextRollNumber: (classId, shiftId) =>
-    ipcRenderer.invoke("get-next-roll-number", classId, shiftId),
+  getNextRollNumber: (classId, shiftId, division) =>
+    ipcRenderer.invoke("get-next-roll-number", classId, shiftId, division),
   getClassesByBranch: (branch_id) =>
     ipcRenderer.invoke("get-classes-by-branch", branch_id),
   addClass: (classData) => ipcRenderer.invoke("add-class", classData),
@@ -49,6 +50,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-students-for-fees", branchId, academicYearId),
   getFeesReceipt: (receiptNumber) =>
     ipcRenderer.invoke("get-fees-receipt", receiptNumber),
+  getNextReceiptNumber: (paymentType) =>
+    ipcRenderer.invoke("get-next-receipt-number", paymentType),
 
   // Academic Year API methods
   listAcademicYears: () => ipcRenderer.invoke("list-academic-years"),

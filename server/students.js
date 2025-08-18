@@ -18,10 +18,10 @@ function getStudents(branch_id, academicYearId = null) {
         s.total_fees,
         s.pending_fees,
         s.shift_id,
+        s.division,
         s.parents_contact1,
         s.parents_contact2,
         s.admission_date,
-        s.admission_end_date,
         s.gender,
         s.mother_name,
         s.father_name,
@@ -63,23 +63,70 @@ function getStudents(branch_id, academicYearId = null) {
   });
 }
 
-// Get the next roll number for a class+shift (max existing + 1)
-function getNextRollNumber(class_id, shift_id) {
-  console.log("[server/students.js] getNextRollNumber() called with class_id=", class_id, "shift_id=", shift_id);
+// Get a single student by ID (includes class/branch info and shift_id)
+function getStudentById(id) {
+  console.log("[server/students.js] getStudentById() called with id=", id);
   return new Promise((resolve, reject) => {
-    if (!class_id || !shift_id) {
+    if (!id) return resolve(null);
+    const sql = `
+      SELECT 
+        s.id,
+        s.name,
+        s.roll_number,
+        s.class_id,
+        s.academic_year_id,
+        s.total_fees,
+        s.pending_fees,
+        s.shift_id,
+        s.division,
+        s.parents_contact1,
+        s.parents_contact2,
+        s.admission_date,
+        s.gender,
+        s.mother_name,
+        s.father_name,
+        s.fee_scholarship,
+        s.birth_place,
+        s.religion,
+        s.address,
+        s.created_at,
+        c.name as class_name,
+        b.name as branch_name,
+        b.id as branch_id
+      FROM students s
+      JOIN classes c ON s.class_id = c.id
+      JOIN branches b ON c.branch_id = b.id
+      WHERE s.id = ?
+      LIMIT 1
+    `;
+    db.get(sql, [id], (err, row) => {
+      if (err) {
+        console.error("[server/students.js] Error fetching student by id:", err);
+        reject(err);
+      } else {
+        resolve(row || null);
+      }
+    });
+  });
+}
+
+// Get the next roll number for a class+shift+division (max existing + 1)
+function getNextRollNumber(class_id, shift_id, division) {
+  console.log("[server/students.js] getNextRollNumber() called with class_id=", class_id, "shift_id=", shift_id, "division=", division);
+  return new Promise((resolve, reject) => {
+    if (!class_id || !shift_id || !division) {
       return resolve(1); // default to 1 if class not selected yet
     }
     db.get(
-      `SELECT MAX(CAST(roll_number AS INTEGER)) AS max_roll FROM students WHERE class_id = ? AND shift_id = ?`,
-      [class_id, shift_id],
+      `SELECT MAX(CAST(roll_number AS INTEGER)) AS max_roll FROM students WHERE class_id = ? AND shift_id = ? AND division = ?`,
+      [class_id, shift_id, division],
       (err, row) => {
         if (err) {
           console.error("[server/students.js] Error fetching max roll number:", err);
           reject(err);
         } else {
           const next = (row && row.max_roll ? parseInt(row.max_roll, 10) : 0) + 1;
-          console.log(`[server/students.js] Next roll number for class ${class_id}, shift ${shift_id} =`, next);
+          console.log(`[server/students.js] Next roll number for class ${class_id}, shift ${shift_id}, division ${division} =`, next);
           resolve(next);
         }
       }
@@ -144,11 +191,11 @@ function addStudent(studentData) {
       roll_number,
       class_id,
       shift_id,
+      division,
       academic_year_id,
       parents_contact1,
       parents_contact2,
       admission_date,
-      admission_end_date,
       gender,
       mother_name,
       father_name,
@@ -157,10 +204,10 @@ function addStudent(studentData) {
       religion,
       address,
     } = studentData;
-    // Check for duplicate roll_number within the same class and shift
+    // Check for duplicate roll_number within the same class, shift, and division
     db.get(
-      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ?`,
-      [roll_number, class_id, shift_id],
+      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ? AND division = ?`,
+      [roll_number, class_id, shift_id, division || null],
       (err, row) => {
         if (err) {
           console.error(
@@ -171,7 +218,7 @@ function addStudent(studentData) {
         } else if (row) {
           reject(
             new Error(
-              "Roll number already exists in this class and shift. Please use a unique roll number for this class and shift."
+              "Roll number already exists in this class, shift, and division. Please use a unique roll number for this class/shift/division."
             )
           );
         } else {
@@ -219,8 +266,8 @@ function addStudent(studentData) {
                   db.run(
                     `
                     INSERT INTO students (
-                      name, roll_number, class_id, shift_id, academic_year_id, parents_contact1, parents_contact2,
-                      admission_date, admission_end_date, gender, mother_name, father_name,
+                      name, roll_number, class_id, shift_id, division, academic_year_id, parents_contact1, parents_contact2,
+                      admission_date, gender, mother_name, father_name,
                       fee_scholarship, birth_place, religion, address, total_fees, pending_fees
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -230,11 +277,11 @@ function addStudent(studentData) {
                       roll_number,
                       class_id,
                       shift_id,
+                      division || null,
                       yearIdToUse,
                       parents_contact1,
                       parents_contact2,
                       admission_date,
-                      admission_end_date,
                       gender,
                       mother_name,
                       father_name,
@@ -314,10 +361,10 @@ function updateStudent(studentData) {
       roll_number,
       class_id,
       shift_id,
+      division,
       parents_contact1,
       parents_contact2,
       admission_date,
-      admission_end_date,
       gender,
       mother_name,
       father_name,
@@ -327,10 +374,10 @@ function updateStudent(studentData) {
       address,
     } = studentData;
 
-    // Check for duplicate roll_number within the same class and shift (excluding current student)
+    // Check for duplicate roll_number within the same class, shift and division (excluding current student)
     db.get(
-      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ? AND id != ?`,
-      [roll_number, class_id, shift_id, id],
+      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ? AND division = ? AND id != ?`,
+      [roll_number, class_id, shift_id, division || null, id],
       (err, row) => {
         if (err) {
           console.error(
@@ -341,7 +388,7 @@ function updateStudent(studentData) {
         } else if (row) {
           reject(
             new Error(
-              "Roll number already exists in this class. Please use a unique roll number for this class."
+              "Roll number already exists in this class/shift/division. Please use a unique roll number for this combination."
             )
           );
         } else {
@@ -352,10 +399,10 @@ function updateStudent(studentData) {
               roll_number = ?, 
               class_id = ?, 
               shift_id = ?,
+              division = ?,
               parents_contact1 = ?,
               parents_contact2 = ?,
               admission_date = ?,
-              admission_end_date = ?,
               gender = ?,
               mother_name = ?,
               father_name = ?,
@@ -370,10 +417,10 @@ function updateStudent(studentData) {
               roll_number,
               class_id,
               shift_id,
+              division || null,
               parents_contact1,
               parents_contact2,
               admission_date,
-              admission_end_date,
               gender,
               mother_name,
               father_name,
@@ -473,4 +520,5 @@ module.exports = {
   updateStudent,
   deleteStudent,
   getClasses,
+  getStudentById,
 };

@@ -10,6 +10,7 @@ const {
   getNextRollNumber,
   updateStudent,
   deleteStudent,
+  getStudentById,
 } = require("./server/students");
 const {
   getClassesByBranch,
@@ -37,6 +38,7 @@ const {
   deleteFees,
   getStudentsForFees,
   getFeesReceipt,
+  getNextReceiptNumber,
 } = require("./server/fees");
 const {
   getClassShifts,
@@ -61,6 +63,15 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+ipcMain.handle("get-student-by-id", async (event, id) => {
+  try {
+    return await getStudentById(id);
+  } catch (error) {
+    console.error("[main.js] Error in 'get-student-by-id' handler:", error);
+    return null;
+  }
+});
 
   const startURL = app.isPackaged
     ? `file://${path.join(__dirname, "client/dist/index.html")}`
@@ -150,10 +161,10 @@ ipcMain.handle("search-students", async (event, branch_id, query, academicYearId
   }
 });
 
-ipcMain.handle("get-next-roll-number", async (event, classId, shiftId) => {
-  console.log("[main.js] IPC handler 'get-next-roll-number' invoked.", { classId, shiftId });
+ipcMain.handle("get-next-roll-number", async (event, classId, shiftId, division) => {
+  console.log("[main.js] IPC handler 'get-next-roll-number' invoked.", { classId, shiftId, division });
   try {
-    const next = await getNextRollNumber(classId, shiftId);
+    const next = await getNextRollNumber(classId, shiftId, division);
     return { success: true, next };
   } catch (error) {
     console.error("[main.js] Error in 'get-next-roll-number' handler:", error);
@@ -405,6 +416,25 @@ ipcMain.handle("get-fees", async (event, branchId, academicYearId = null) => {
         resolve({ success: true, fees });
       }
     });
+  });
+});
+
+ipcMain.handle("get-next-receipt-number", async (event, paymentType) => {
+  return new Promise((resolve) => {
+    try {
+      const type = paymentType === 'cash' ? 'cash' : 'bank';
+      getNextReceiptNumber(type, (err, next) => {
+        if (err) {
+          console.error("[main.js] Error in 'get-next-receipt-number':", err);
+          resolve({ success: false, error: err.message || 'Failed to get next receipt number' });
+        } else {
+          resolve({ success: true, next });
+        }
+      });
+    } catch (error) {
+      console.error("[main.js] Exception in 'get-next-receipt-number':", error);
+      resolve({ success: false, error: error.message || 'Failed to get next receipt number' });
+    }
   });
 });
 

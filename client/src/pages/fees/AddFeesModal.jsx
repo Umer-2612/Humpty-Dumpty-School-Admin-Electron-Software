@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect } from "react";
 import { useBranch } from "../../context/useBranch";
 import Modal from "../../component/Modal";
 import Paper from "@mui/material/Paper";
@@ -20,9 +20,10 @@ import PersonIcon from "@mui/icons-material/Person";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import NotesIcon from "@mui/icons-material/Notes";
-import QrCodeIcon from "@mui/icons-material/QrCode";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { useYear } from "../../context/YearProvider.jsx";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import CloseIcon from "@mui/icons-material/Close";
 
 const AddFeesModal = ({
@@ -47,23 +48,36 @@ const AddFeesModal = ({
   const searchTimer = React.useRef(null);
   const dropdownRef = React.useRef(null);
 
-  // Fetch all students initially
-  const fetchStudents = React.useCallback(async (branchId) => {
-    if (!window?.electronAPI?.getStudents) return;
-    setStudentsLoading(true);
-    try {
-      const data = await window.electronAPI.getStudents(
-        branchId,
-        selectedYear?.id || null
-      );
-      setStudentsList(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error("Error fetching students:", e);
-      setStudentsList([]);
-    } finally {
-      setStudentsLoading(false);
+  // Set default payment date to today when modal opens (if empty)
+  useEffect(() => {
+    if (open) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (!data?.payment_date) {
+        setData({ payment_date: today });
+      }
     }
-  }, [selectedYear?.id]);
+  }, [open]);
+
+  // Fetch all students initially
+  const fetchStudents = React.useCallback(
+    async (branchId) => {
+      if (!window?.electronAPI?.getStudents) return;
+      setStudentsLoading(true);
+      try {
+        const data = await window.electronAPI.getStudents(
+          branchId,
+          selectedYear?.id || null
+        );
+        setStudentsList(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error("Error fetching students:", e);
+        setStudentsList([]);
+      } finally {
+        setStudentsLoading(false);
+      }
+    },
+    [selectedYear?.id]
+  );
 
   // Search students with debounce
   const searchStudents = React.useCallback(
@@ -138,20 +152,35 @@ const AddFeesModal = ({
     return () => {
       if (searchTimer.current) clearTimeout(searchTimer.current);
     };
-  }, [studentSearch, dropdownOpen, selectedBranch?.id, selectedYear?.id, searchStudents]);
+  }, [
+    studentSearch,
+    dropdownOpen,
+    selectedBranch?.id,
+    selectedYear?.id,
+    searchStudents,
+  ]);
 
   // Local fallback state if parent didn't pass setFormData
   const [internalData, setInternalData] = React.useState(formData || {});
   const data = formData ?? internalData;
 
   // Unified setter that uses parent's setter if available; otherwise local
-  const setData = (patch) => {
-    if (typeof setFormData === "function") {
-      setFormData((prev) => ({ ...(prev || {}), ...patch }));
-    } else {
-      setInternalData((prev) => ({ ...(prev || {}), ...patch }));
-    }
-  };
+  const setData = useCallback(
+    (patch) => {
+      if (typeof setFormData === "function") {
+        setFormData((prev) => ({ ...(prev || {}), ...patch }));
+      } else {
+        setInternalData((prev) => ({ ...(prev || {}), ...patch }));
+      }
+    },
+    [setFormData]
+  );
+
+  // Normalize current type for consistent conditional rendering and value binding
+  const paymentType = (data?.payment_type || "cash")
+    .toString()
+    .trim()
+    .toLowerCase();
 
   // Ensure default payment_type is set once
   React.useEffect(() => {
@@ -161,9 +190,62 @@ const AddFeesModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch next receipt number preview when modal opens or payment type changes
+  React.useEffect(() => {
+    const fetchNextReceipt = async () => {
+      try {
+        if (!open || !window?.electronAPI?.getNextReceiptNumber) return;
+        const normalized = (data?.payment_type || "cash")
+          .toString()
+          .trim()
+          .toLowerCase();
+        const res = await window.electronAPI.getNextReceiptNumber(normalized);
+        if (res?.success && res?.next) {
+          setData({ receipt_preview: res.next });
+        } else {
+          setData({ receipt_preview: "" });
+        }
+      } catch (e) {
+        console.error("Failed to fetch next receipt number", e);
+        setData({ receipt_preview: "" });
+      }
+    };
+    fetchNextReceipt();
+  }, [open, data?.payment_type, setData]);
+
+  // Format number in Indian numbering system (e.g., 1,00,000.50)
+  const formatIndianNumber = (val) => {
+    if (val === undefined || val === null) return "";
+    const str = val.toString();
+    // Keep only digits and at most one decimal point
+    const cleaned = str.replace(/[^0-9.]/g, "");
+    const [intPartRaw, decPartRaw] = cleaned.split(".");
+    if (!intPartRaw) return cleaned; // allow typing leading dot
+    // Remove leading zeros except if the number is just 0
+    const intDigits = intPartRaw.replace(/^0+(?!$)/, "");
+    // Apply Indian grouping to integer part
+    let x = intDigits;
+    if (x.length <= 3) {
+      // No grouping needed for up to 3 digits
+    } else {
+      const last3 = x.slice(-3);
+      const rest = x.slice(0, -3);
+      const restGrouped = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",");
+      x = restGrouped + "," + last3;
+    }
+    const dec =
+      decPartRaw !== undefined ? "." + decPartRaw.replace(/\./g, "") : "";
+    return x + dec;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setData({ [name]: value });
+    if (name === "amount") {
+      const formatted = formatIndianNumber(value);
+      setData({ amount: formatted });
+    } else {
+      setData({ [name]: value });
+    }
   };
 
   // RadioGroup onChange provides (event, value). event.target.name is undefined,
@@ -181,12 +263,6 @@ const AddFeesModal = ({
     setData({ payment_type: normalized, ...resets });
   };
 
-  // Normalize current type for consistent conditional rendering and value binding
-  const paymentType = (data?.payment_type || "cash")
-    .toString()
-    .trim()
-    .toLowerCase();
-
   // Internal submit handler (uses external handleSubmit if provided)
   const onSubmit = async (e) => {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
@@ -200,17 +276,17 @@ const AddFeesModal = ({
       // Basic validation
       const newErrors = {};
       if (!data?.student_id) newErrors.student_id = "Student is required";
-      const amountNum = parseFloat(data?.amount);
+      const amountNum = parseFloat(
+        (data?.amount || "").toString().replace(/,/g, "")
+      );
       if (!amountNum || amountNum <= 0)
         newErrors.amount = "Valid amount is required";
-      if (!data?.payee_name || !data.payee_name.toString().trim())
+      // Payee name is required only for Bank payments
+      if (
+        paymentType === "bank" &&
+        (!data?.payee_name || !data.payee_name.toString().trim())
+      )
         newErrors.payee_name = "Payee name is required";
-      if (paymentType === "cheque") {
-        if (!data?.bank_name || !data.bank_name.toString().trim())
-          newErrors.bank_name = "Bank name is required";
-        if (!data?.cheque_number || !data.cheque_number.toString().trim())
-          newErrors.cheque_number = "Cheque number is required";
-      }
 
       // Surface first validation error via setError, if provided
       if (Object.keys(newErrors).length > 0) {
@@ -230,10 +306,11 @@ const AddFeesModal = ({
         amount: amountNum,
         payment_type: paymentType,
         cheque_number:
-          paymentType === "cheque" ? data?.cheque_number || null : null,
-        bank_name: paymentType === "cheque" ? data?.bank_name || null : null,
-        payee_name: data?.payee_name || "",
+          paymentType === "bank" ? data?.cheque_number || null : null,
+        bank_name: paymentType === "bank" ? data?.bank_name || null : null,
+        payee_name: paymentType === "bank" ? data?.payee_name || "" : null,
         payment_date: data?.payment_date || today,
+        cheque_date: paymentType === "bank" ? data?.cheque_date || null : null,
         academic_year_id: selectedYear?.id || null,
         month_year: data?.month_year || null,
         notes: data?.notes || null,
@@ -295,225 +372,312 @@ const AddFeesModal = ({
             onSubmit={onSubmit}
             sx={{ p: 3, pt: 2 }}
           >
-            <Grid container spacing={2}>
-              {/* Student Selection, Amount, and inline Payment Details label */}
-              <Grid item xs={12} sm={7}>
-                <Autocomplete
-                  fullWidth
-                  size="small"
-                  open={dropdownOpen}
-                  onOpen={() => {
-                    setDropdownOpen(true);
-                    setStudentSearch("");
-                  }}
-                  onClose={(event, reason) => {
-                    // Only close on explicit escape; ignore blur/backdrop while using internal search
-                    if (reason === "escape") {
+            <Grid container spacing={2} sx={{ flexWrap: "wrap !important" }}>
+              {/* Top-right Receipt No (read-only, with label) */}
+              <Grid item xs={12}>
+                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                  <TextField
+                    label="Receipt No"
+                    variant="outlined"
+                    size="small"
+                    value={data?.receipt_preview || ""}
+                    disabled
+                    InputProps={{
+                      readOnly: true,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <ReceiptLongIcon color="action" fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      minWidth: 170,
+                      "& .MuiInputBase-root.Mui-disabled": {
+                        bgcolor: "#e5e7eb",
+                      },
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#cbd5e1",
+                      },
+                    }}
+                  />
+                </Box>
+              </Grid>
+              {/* Row 1: Student Selection (own row, field width 50%) */}
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  flexBasis: "100% !important",
+                  maxWidth: "70% !important",
+                }}
+              >
+                <Box sx={{ width: "100%" }}>
+                  <Autocomplete
+                    fullWidth
+                    size="small"
+                    open={dropdownOpen}
+                    onOpen={() => {
+                      setDropdownOpen(true);
+                      setStudentSearch("");
+                    }}
+                    onClose={(event, reason) => {
+                      // Only close on explicit escape; ignore blur/backdrop while using internal search
+                      if (reason === "escape") {
+                        setDropdownOpen(false);
+                        setStudentSearch("");
+                      }
+                    }}
+                    disableCloseOnSelect={false}
+                    options={studentsList || []}
+                    loading={studentsLoading}
+                    value={
+                      (studentsList || []).find(
+                        (s) => s.id === data?.student_id
+                      ) || null
+                    }
+                    onChange={(e, newValue) => {
+                      setData({ student_id: newValue ? newValue.id : "" });
                       setDropdownOpen(false);
                       setStudentSearch("");
+                    }}
+                    getOptionLabel={(option) =>
+                      option
+                        ? `${option.name} - (${option.roll_number}) (${option.class_name})`
+                        : ""
                     }
-                  }}
-                  disableCloseOnSelect={false}
-                  options={studentsList || []}
-                  loading={studentsLoading}
-                  value={
-                    (studentsList || []).find(
-                      (s) => s.id === data?.student_id
-                    ) || null
-                  }
-                  onChange={(e, newValue) => {
-                    setData({ student_id: newValue ? newValue.id : "" });
-                    setDropdownOpen(false);
-                    setStudentSearch("");
-                  }}
-                  getOptionLabel={(option) =>
-                    option
-                      ? `${option.name} - ${option.roll_number} (${option.class_name})`
-                      : ""
-                  }
-                  isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      required
-                      label="Select Student"
-                      variant="outlined"
-                      error={!!errors?.student_id}
-                      helperText={errors?.student_id}
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <>
-                            <InputAdornment position="start">
-                              <PersonIcon color="action" fontSize="small" />
-                            </InputAdornment>
-                            {params.InputProps.startAdornment}
-                          </>
-                        ),
-                      }}
-                      sx={{ bgcolor: "white" }}
-                    />
-                  )}
-                  PaperComponent={(props) => (
-                    <Paper
-                      {...props}
-                      ref={dropdownRef}
-                      sx={{
-                        width: "auto",
-                        minWidth: 400,
-                        maxWidth: 600,
-                      }}
-                    >
-                      {/* Search header */}
-                      <Box
+                    isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
+                    renderInput={(params) => {
+                      const selected =
+                        (studentsList || []).find(
+                          (s) => s.id === data?.student_id
+                        ) || null;
+                      const selectedLabel = selected
+                        ? `${selected.name} - (${selected.roll_number}) (${selected.class_name})`
+                        : "";
+                      return (
+                        <Tooltip
+                          title={selectedLabel}
+                          arrow
+                          placement="bottom"
+                          disableFocusListener
+                          disableTouchListener
+                        >
+                          <TextField
+                            {...params}
+                            required
+                            label="Select Student"
+                            variant="outlined"
+                            error={!!errors?.student_id}
+                            helperText={errors?.student_id}
+                            InputProps={{
+                              ...params.InputProps,
+                              startAdornment: (
+                                <>
+                                  <InputAdornment position="start">
+                                    <PersonIcon
+                                      color="action"
+                                      fontSize="small"
+                                    />
+                                  </InputAdornment>
+                                  {params.InputProps.startAdornment}
+                                </>
+                              ),
+                            }}
+                            sx={{
+                              bgcolor: "white",
+                              "& .MuiInputBase-input": {
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              },
+                            }}
+                          />
+                        </Tooltip>
+                      );
+                    }}
+                    PaperComponent={(props) => (
+                      <Paper
+                        {...props}
+                        ref={dropdownRef}
                         sx={{
-                          p: 1,
-                          borderBottom: "1px solid #eee",
-                          position: "sticky",
-                          top: 0,
-                          zIndex: 1,
-                          bgcolor: "background.paper",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 1,
-                        }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
+                          width: "auto",
+                          minWidth: 400,
+                          maxWidth: 600,
                         }}
                       >
-                        <TextField
-                          placeholder="Search student..."
-                          size="small"
-                          fullWidth
-                          value={studentSearch}
-                          onChange={(e) => {
-                            setStudentSearch(e.target.value);
+                        {/* Search header */}
+                        <Box
+                          sx={{
+                            p: 1,
+                            borderBottom: "1px solid #eee",
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 1,
+                            bgcolor: "background.paper",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
                           }}
                           onMouseDown={(e) => {
                             e.stopPropagation();
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                          }}
-                          autoFocus
-                        />
-                        <IconButton
-                          aria-label="clear and close"
-                          size="small"
-                          onMouseDown={(e) => {
-                            e.stopPropagation();
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Clear selected value and search, then close dropdown
-                            setData({ student_id: "" });
-                            setStudentSearch("");
-                            setDropdownOpen(false);
                           }}
                         >
-                          <CloseIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                      {/* Options list */}
-                      <Box sx={{ maxHeight: 240, overflow: "auto" }}>
-                        {props.children}
-                      </Box>
-                    </Paper>
-                  )}
-                  renderOption={(props, option, { index }) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <Box
-                        key={key}
-                        component="li"
-                        {...otherProps}
-                        sx={{
+                          <TextField
+                            placeholder="Search student..."
+                            size="small"
+                            fullWidth
+                            value={studentSearch}
+                            onChange={(e) => {
+                              setStudentSearch(e.target.value);
+                            }}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            autoFocus
+                          />
+                          <IconButton
+                            aria-label="clear and close"
+                            size="small"
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Clear selected value and search, then close dropdown
+                              setData({ student_id: "" });
+                              setStudentSearch("");
+                              setDropdownOpen(false);
+                            }}
+                          >
+                            <CloseIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                        {/* Options list */}
+                        <Box sx={{ maxHeight: 240, overflow: "auto" }}>
+                          {props.children}
+                        </Box>
+                      </Paper>
+                    )}
+                    renderOption={(props, option, { index }) => {
+                      const { key, ...otherProps } = props;
+                      return (
+                        <Box
+                          key={key}
+                          component="li"
+                          {...otherProps}
+                          sx={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            padding: "8px 16px",
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Box
+                            component="span"
+                            sx={{
+                              minWidth: "24px",
+                              marginRight: "8px",
+                              fontFamily: "inherit",
+                              fontSize: "inherit",
+                              fontWeight: "inherit",
+                              color: "inherit",
+                            }}
+                          >
+                            {index + 1}.
+                          </Box>
+                          <Box component="span" sx={{ flex: 1 }}>
+                            {`${option.name} - (${option.class_name}) (${option.roll_number})`}
+                          </Box>
+                        </Box>
+                      );
+                    }}
+                    filterOptions={(x) => x}
+                    noOptionsText={
+                      studentsLoading ? "Loading..." : "No students found"
+                    }
+                  />
+                </Box>
+              </Grid>
+
+              {/* Row 2: Amount (own row, field width ~30-40%) */}
+              <Grid
+                item
+                xs={12}
+                sx={{
+                  flexBasis: "100% !important",
+                  maxWidth: "100% !important",
+                }}
+              >
+                <Box sx={{ width: "30%" }}>
+                  <Tooltip
+                    title={(data?.amount || "").toString()}
+                    arrow
+                    placement="bottom"
+                    disableFocusListener
+                    disableTouchListener
+                  >
+                    <TextField
+                      fullWidth
+                      required
+                      label="Amount"
+                      name="amount"
+                      type="text"
+                      variant="outlined"
+                      size="small"
+                      value={data?.amount || ""}
+                      onChange={handleChange}
+                      error={!!errors?.amount}
+                      helperText={errors?.amount}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">₹</InputAdornment>
+                        ),
+                        inputProps: { inputMode: "decimal" },
+                      }}
+                      sx={{
+                        bgcolor: "white",
+                        "& .MuiInputBase-input": {
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
-                          padding: "8px 16px",
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Box
-                          component="span"
-                          sx={{
-                            minWidth: "24px",
-                            marginRight: "8px",
-                            fontFamily: "inherit",
-                            fontSize: "inherit",
-                            fontWeight: "inherit",
-                            color: "inherit",
-                          }}
-                        >
-                          {index + 1}.
-                        </Box>
-                        <Box component="span" sx={{ flex: 1 }}>
-                          {`${option.name} - ${option.roll_number} (${option.class_name})`}
-                        </Box>
-                      </Box>
-                    );
-                  }}
-                  filterOptions={(x) => x}
-                  noOptionsText={
-                    studentsLoading ? "Loading..." : "No students found"
-                  }
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={3}>
-                <TextField
-                  fullWidth
-                  required
-                  label="Amount"
-                  name="amount"
-                  type="number"
-                  variant="outlined"
-                  size="small"
-                  value={data?.amount || ""}
-                  onChange={handleChange}
-                  error={!!errors?.amount}
-                  helperText={errors?.amount}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">₹</InputAdornment>
-                    ),
-                    inputProps: { min: 0, step: 0.01 },
-                  }}
-                  sx={{ bgcolor: "white" }}
-                />
-              </Grid>
-
-              {/* Inline Payment Details label on the first row (right aligned) */}
-              <Grid item xs={12} sm={2}>
-                <Box
-                  sx={{
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: { xs: "flex-start", sm: "flex-end" },
-                  }}
-                ></Box>
+                        },
+                        "& input[type=number]": {
+                          MozAppearance: "textfield",
+                        },
+                        "& input[type=number]::-webkit-outer-spin-button": {
+                          WebkitAppearance: "none",
+                          margin: 0,
+                        },
+                        "& input[type=number]::-webkit-inner-spin-button": {
+                          WebkitAppearance: "none",
+                          margin: 0,
+                        },
+                      }}
+                    />
+                  </Tooltip>
+                </Box>
               </Grid>
 
               <Grid item xs={12}>
-                <Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                   <Typography
                     variant="subtitle1"
                     sx={{
                       fontSize: "0.95rem",
                       fontWeight: 700,
-                      mb: 1,
                       color: teal[600],
                     }}
                   >
                     Payment Type
                   </Typography>
-
                   <RadioGroup
                     row
                     name="payment_type"
@@ -540,7 +704,7 @@ const AddFeesModal = ({
                       label="Cash"
                     />
                     <FormControlLabel
-                      value="cheque"
+                      value="bank"
                       control={
                         <Radio
                           size="small"
@@ -550,50 +714,54 @@ const AddFeesModal = ({
                           }}
                         />
                       }
-                      label="Cheque"
-                    />
-                    <FormControlLabel
-                      value="upi"
-                      control={
-                        <Radio
-                          size="small"
-                          sx={{
-                            color: teal[300],
-                            "&.Mui-checked": { color: teal[600] },
-                          }}
-                        />
-                      }
-                      label="UPI"
+                      label="Bank"
                     />
                   </RadioGroup>
                 </Box>
               </Grid>
 
-              {/* Payee Name - Common for all payment types */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  required
-                  label="Payee Name"
-                  name="payee_name"
-                  variant="outlined"
-                  size="small"
-                  value={data?.payee_name || ""}
-                  onChange={handleChange}
-                  error={!!errors?.payee_name}
-                  helperText={errors?.payee_name}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonIcon color="action" fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ bgcolor: "white" }}
-                />
-              </Grid>
+              {/* Bank: Payee Name */}
+              {paymentType === "bank" && (
+                <Grid item xs={12} sm={6}>
+                  <Tooltip
+                    title={(data?.payee_name || "").toString()}
+                    arrow
+                    placement="bottom"
+                    disableFocusListener
+                    disableTouchListener
+                  >
+                    <TextField
+                      fullWidth
+                      required
+                      label="Payee Name"
+                      name="payee_name"
+                      variant="outlined"
+                      size="small"
+                      value={data?.payee_name || ""}
+                      onChange={handleChange}
+                      error={!!errors?.payee_name}
+                      helperText={errors?.payee_name}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon color="action" fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{
+                        bgcolor: "white",
+                        "& .MuiInputBase-input": {
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        },
+                      }}
+                    />
+                  </Tooltip>
+                </Grid>
+              )}
 
-              {/* Payment Date - to match Edit modal */}
+              {/* Payment Date - default to today; shown for both types */}
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
@@ -619,37 +787,36 @@ const AddFeesModal = ({
                 />
               </Grid>
 
-              {/* Cheque Date (only for cheque) */}
-              {paymentType === "cheque" && (
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Cheque Date"
-                    name="cheque_date"
-                    type="date"
-                    variant="outlined"
-                    size="small"
-                    value={data?.cheque_date || ""}
-                    onChange={handleChange}
-                    error={!!errors?.cheque_date}
-                    helperText={errors?.cheque_date}
-                    InputLabelProps={{ shrink: true }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <CalendarTodayIcon color="action" fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ bgcolor: "white" }}
-                  />
-                </Grid>
-              )}
-
-              {/* Cheque Fields - Conditional */}
-              {paymentType === "cheque" && (
+              {/* Bank Fields - Conditional */}
+              {paymentType === "bank" && (
                 <>
+                  {/* Cheque Date (Bank) */}
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Cheque Date"
+                      name="cheque_date"
+                      type="date"
+                      variant="outlined"
+                      size="small"
+                      value={data?.cheque_date || ""}
+                      onChange={handleChange}
+                      error={!!errors?.cheque_date}
+                      helperText={errors?.cheque_date}
+                      InputLabelProps={{ shrink: true }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarTodayIcon
+                              color="action"
+                              fontSize="small"
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ bgcolor: "white" }}
+                    />
+                  </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
@@ -678,7 +845,6 @@ const AddFeesModal = ({
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      required
                       label="Cheque Number"
                       name="cheque_number"
                       variant="outlined"
@@ -690,60 +856,75 @@ const AddFeesModal = ({
                       sx={{ bgcolor: "white" }}
                     />
                   </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="UPI ID"
+                      name="upi_id"
+                      variant="outlined"
+                      size="small"
+                      value={data?.upi_id || ""}
+                      onChange={handleChange}
+                      error={!!errors?.upi_id}
+                      helperText={errors?.upi_id}
+                      placeholder="e.g., name@upi"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <ReceiptLongIcon color="action" fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ bgcolor: "white" }}
+                    />
+                  </Grid>
                 </>
               )}
 
-              {/* UPI Field - Conditional */}
-              {paymentType === "upi" && (
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="UPI ID"
-                    name="upi_id"
-                    variant="outlined"
-                    size="small"
-                    value={data?.upi_id || ""}
-                    onChange={handleChange}
-                    error={!!errors?.upi_id}
-                    helperText={errors?.upi_id}
-                    placeholder="e.g., name@upi"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <QrCodeIcon color="action" fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ bgcolor: "white" }}
-                  />
-                </Grid>
-              )}
+              {/* UPI Field removed as separate type (merged into Bank) */}
 
               {/* Notes */}
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Notes"
-                  name="notes"
-                  multiline
-                  rows={2}
-                  variant="outlined"
-                  size="small"
-                  value={data?.notes || ""}
-                  onChange={handleChange}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment
-                        position="start"
-                        sx={{ alignSelf: "flex-start", mt: 1 }}
-                      >
-                        <NotesIcon color="action" fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ bgcolor: "white" }}
-                />
+                <Tooltip
+                  title={(data?.notes || "").toString()}
+                  arrow
+                  placement="bottom"
+                  disableFocusListener
+                  disableTouchListener
+                >
+                  <TextField
+                    fullWidth
+                    label="Notes"
+                    name="notes"
+                    multiline
+                    rows={2}
+                    variant="outlined"
+                    size="small"
+                    value={data?.notes || ""}
+                    onChange={handleChange}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment
+                          position="start"
+                          sx={{ alignSelf: "flex-start", mt: 1 }}
+                        >
+                          <NotesIcon color="action" fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{
+                      bgcolor: "white",
+                      "& .MuiInputBase-input": {
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "normal",
+                      },
+                    }}
+                  />
+                </Tooltip>
               </Grid>
             </Grid>
           </Box>

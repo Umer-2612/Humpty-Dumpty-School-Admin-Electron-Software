@@ -13,7 +13,7 @@ import { teal } from "@mui/material/colors";
 import PersonIcon from "@mui/icons-material/Person";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
 import PaymentIcon from "@mui/icons-material/Payment";
-import ReceiptIcon from "@mui/icons-material/Receipt";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import QrCodeIcon from "@mui/icons-material/QrCode";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
@@ -41,6 +41,8 @@ const Fees = () => {
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+  console.log({ selectedReceipt });
+
   // Add serial numbers to fees data
   const feesWithSrNo = fees.map((item, index) => ({
     ...item,
@@ -65,14 +67,13 @@ const Fees = () => {
             width: "100%",
           }}
         >
-          <ReceiptIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+          <ReceiptLongIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
           <Tooltip title={params.value || ""}>
             <span
               style={{ cursor: "pointer", color: teal[700], fontWeight: 600 }}
               onClick={() => handleViewReceipt(params.row)}
             >
-              {/* Show DB row ID as the displayed receipt number */}
-              {params.row?.id ?? ""}
+              {params.value || ""}
             </span>
           </Tooltip>
         </Box>
@@ -354,9 +355,38 @@ const Fees = () => {
     setSuccess("");
   };
 
-  const handleViewReceipt = (feesRecord) => {
-    setSelectedReceipt(feesRecord);
-    setShowReceiptModal(true);
+  const handleViewReceipt = async (feesRecord) => {
+    try {
+      const studentId = feesRecord.student_id || feesRecord.studentId || null;
+      console.log({ studentId });
+      if (studentId) {
+        console.log("here 1");
+        let student = null;
+        if (window?.electronAPI?.getStudentById) {
+          student = await window.electronAPI.getStudentById(studentId);
+        } else if (window?.electronAPI?.getStudents && selectedBranch?.id) {
+          // Fallback: fetch students list and match by id
+          const list = await window.electronAPI.getStudents(
+            selectedBranch.id,
+            selectedYear?.id || null
+          );
+          if (Array.isArray(list)) {
+            student =
+              list.find((s) => String(s.id) === String(studentId)) || null;
+          }
+        }
+        console.log({ student });
+        setSelectedReceipt({ ...feesRecord, student });
+      } else {
+        console.log("here 2");
+        setSelectedReceipt(feesRecord);
+      }
+    } catch (e) {
+      console.error("Failed to load student for receipt:", e);
+      setSelectedReceipt(feesRecord);
+    } finally {
+      setShowReceiptModal(true);
+    }
   };
 
   const handleAddSuccess = () => {
@@ -405,7 +435,10 @@ const Fees = () => {
         </Button>
       </div>
 
-      <Paper elevation={2} sx={{ p: 3, flex: 1, minHeight: 0, display: "flex" }}>
+      <Paper
+        elevation={2}
+        sx={{ p: 3, flex: 1, minHeight: 0, display: "flex" }}
+      >
         <div style={{ width: "100%", height: "100%" }}>
           {settingsLoaded && (
             <TableWrapper

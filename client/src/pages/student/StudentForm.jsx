@@ -14,6 +14,8 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import WcIcon from "@mui/icons-material/Wc";
 import HomeIcon from "@mui/icons-material/Home";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import PublicIcon from "@mui/icons-material/Public";
+import ClassIcon from "@mui/icons-material/Class";
 
 const StudentForm = ({
   form,
@@ -26,17 +28,24 @@ const StudentForm = ({
 }) => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      // If class changes, reset division so user reselects based on the new class
+      if (name === "class_id") {
+        return { ...prev, [name]: value, division: "" };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   // Auto-generate next roll number when class or shift changes (only for add mode)
   useEffect(() => {
     const fetchNextRoll = async () => {
       try {
-        if (!isEditing && form.class_id && form.shift_id) {
+        if (!isEditing && form.class_id && form.shift_id && form.division) {
           const res = await window.electronAPI.getNextRollNumber(
             form.class_id,
-            form.shift_id
+            form.shift_id,
+            form.division
           );
           if (res && res.success) {
             setForm((prev) => {
@@ -53,13 +62,26 @@ const StudentForm = ({
     };
     fetchNextRoll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.class_id, form.shift_id, isEditing]);
+  }, [form.class_id, form.shift_id, form.division, isEditing]);
+
+  // Get divisions count for the selected class. Supports multiple possible field names.
+  const selectedClass = classes?.find(
+    (c) => String(c.id) === String(form.class_id)
+  );
+
+  console.log({ selectedClass });
+
+  const divisionsCount = selectedClass?.num_divisions || 0;
+  const divisionOptions = Array.from(
+    { length: Number(divisionsCount) },
+    (_, i) => String.fromCharCode(65 + i)
+  );
 
   // Step 0: Basic Student Details
   const renderStep0 = () => (
     <>
-      {/* Row 1: Name | Roll No. (auto) */}
-      <Grid item xs={12} md={8}>
+      {/* Row 1: Name (full width) */}
+      <Grid item xs={12} md={12}>
         <TextField
           label="Name"
           name="name"
@@ -82,7 +104,117 @@ const StudentForm = ({
           sx={{ bgcolor: "white" }}
         />
       </Grid>
-      <Grid item xs={12} md={4}>
+      {/* Row 2: Class | Shift | Division (aligned equal widths, no wrap on md+) */}
+      <Grid item xs={12}>
+        <Grid
+          container
+          spacing={2}
+          sx={{ flexWrap: { xs: "wrap", md: "nowrap" } }}
+        >
+          <Grid item xs={12} md={4}>
+            <TextField
+              select
+              required
+              fullWidth
+              variant="outlined"
+              size="small"
+              label="Class"
+              name="class_id"
+              value={form.class_id || ""}
+              onChange={handleInputChange}
+              error={!!errors.class_id}
+              helperText={errors.class_id}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SchoolIcon color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                bgcolor: "white",
+                "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
+              }}
+            >
+              {classes?.map((cls) => (
+                <MenuItem key={cls.id} value={cls.id}>
+                  {cls.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              select
+              required
+              fullWidth
+              variant="outlined"
+              size="small"
+              label="Shift"
+              name="shift_id"
+              value={form.shift_id || ""}
+              onChange={handleInputChange}
+              error={!!errors.shift_id}
+              helperText={errors.shift_id}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <AccessTimeIcon color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                bgcolor: "white",
+                "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
+              }}
+            >
+              {shifts?.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.name}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          {/* Division (always visible; disabled until class is selected) */}
+          <Grid item xs={12} md={4}>
+            <TextField
+              select
+              fullWidth
+              variant="outlined"
+              size="small"
+              label="Division"
+              name="division"
+              value={form.division || ""}
+              onChange={handleInputChange}
+              error={!!errors.division}
+              helperText={
+                errors.division ||
+                (!form.class_id ? "Select a class to choose division" : "")
+              }
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <ClassIcon color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                bgcolor: "white",
+                "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
+              }}
+              disabled={!form.class_id || Number(divisionsCount) === 0}
+            >
+              {divisionOptions.map((d) => (
+                <MenuItem key={d} value={d}>
+                  {d}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+        </Grid>
+      </Grid>
+      {/* Row 3: Roll No. (auto-generated) */}
+      <Grid item xs={12} md={12}>
         <TextField
           label="Roll No."
           name="roll_number"
@@ -92,9 +224,7 @@ const StudentForm = ({
           size="small"
           type="number"
           error={!!errors.roll_number}
-          helperText={
-            errors.roll_number || (!isEditing ? "Auto-generated" : "")
-          }
+          helperText={errors.roll_number || "Auto-generated"}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -102,102 +232,21 @@ const StudentForm = ({
               </InputAdornment>
             ),
             min: 1,
-            readOnly: !isEditing,
+            readOnly: true,
           }}
-          disabled={!isEditing}
+          disabled
           sx={{
-            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button": {
-              WebkitAppearance: "none",
-              margin: 0,
-            },
+            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+              {
+                WebkitAppearance: "none",
+                margin: 0,
+              },
             "& input[type=number]": { MozAppearance: "textfield" },
-            bgcolor: !isEditing ? "#f5f5f5" : "white",
-            width: { xs: 180, sm: 200, md: "100%" },
+            // Apply grey only to the input box, not helper text container
+            "& .MuiInputBase-root": { bgcolor: "#f5f5f5" },
           }}
+          fullWidth
         />
-      </Grid>
-      {/* Row 2: Class | Shift */}
-      <Grid item xs={12} md={6}>
-        <FormControl
-          fullWidth
-          required
-          variant="outlined"
-          error={!!errors.class_id}
-        >
-          <InputLabel id="class-label">Class</InputLabel>
-          <Select
-            labelId="class-label"
-            label="Class"
-            name="class_id"
-            value={form.class_id}
-            onChange={handleInputChange}
-            sx={{ bgcolor: "white" }}
-            startAdornment={
-              <InputAdornment position="start">
-                <SchoolIcon color="action" />
-              </InputAdornment>
-            }
-          >
-            {classes?.map((cls) => (
-              <MenuItem key={cls.id} value={cls.id}>
-                {cls.name}
-              </MenuItem>
-            ))}
-          </Select>
-          {errors.class_id && (
-            <div
-              style={{
-                color: "#d32f2f",
-                fontSize: "0.75rem",
-                marginTop: "3px",
-                marginLeft: "14px",
-              }}
-            >
-              {errors.class_id}
-            </div>
-          )}
-        </FormControl>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <FormControl
-          fullWidth
-          required
-          variant="outlined"
-          error={!!errors.shift_id}
-        >
-          <InputLabel id="shift-label">Shift</InputLabel>
-          <Select
-            labelId="shift-label"
-            label="Shift"
-            name="shift_id"
-            value={form.shift_id}
-            onChange={handleInputChange}
-            sx={{ bgcolor: "white" }}
-            startAdornment={
-              <InputAdornment position="start">
-                <AccessTimeIcon color="action" />
-              </InputAdornment>
-            }
-          >
-            {shifts?.map((s) => (
-              <MenuItem key={s.id} value={s.id}>
-                {`${s.name} (${s.time})`}
-              </MenuItem>
-            ))}
-          </Select>
-          {errors.shift_id && (
-            <div
-              style={{
-                color: "#d32f2f",
-                fontSize: "0.75rem",
-                marginTop: "3px",
-                marginLeft: "14px",
-              }}
-            >
-              {errors.shift_id}
-            </div>
-          )}
-        </FormControl>
       </Grid>
     </>
   );
@@ -293,7 +342,7 @@ const StudentForm = ({
         />
       </Grid>
 
-      {/* Row 3: Admission Date | Admission End Date */}
+      {/* Row 3: Admission Date | Gender */}
       <Grid item xs={12} md={5.8}>
         <TextField
           label="Admission Date"
@@ -313,75 +362,47 @@ const StudentForm = ({
               </InputAdornment>
             ),
           }}
-          sx={{ bgcolor: "white" }}
-        />
-      </Grid>
-      <Grid item xs={12} md={5.8}>
-        <TextField
-          label="Admission End Date"
-          name="admission_end_date"
-          value={form.admission_end_date}
-          onChange={handleInputChange}
-          fullWidth
-          variant="outlined"
-          size="small"
-          type="date"
-          error={!!errors.admission_end_date}
-          helperText={errors.admission_end_date}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <CalendarTodayIcon color="action" />
-              </InputAdornment>
-            ),
+          sx={{
+            bgcolor: "white",
+            "& .MuiInputBase-root": { width: "100%" },
           }}
-          sx={{ bgcolor: "white" }}
         />
       </Grid>
 
-      {/* Row 4: Gender | Religion */}
       <Grid item xs={12} md={5.8}>
-        <FormControl
+        <TextField
+          select
           fullWidth
           variant="outlined"
-          error={!!errors.gender}
           size="small"
-          sx={{ bgcolor: "white" }}
-        >
-          <InputLabel id="gender-label">Gender</InputLabel>
-          <Select
-            labelId="gender-label"
-            label="Gender"
-            name="gender"
-            value={form.gender}
-            onChange={handleInputChange}
-            size="small"
-            startAdornment={
+          label="Gender"
+          name="gender"
+          value={form.gender}
+          onChange={handleInputChange}
+          error={!!errors.gender}
+          helperText={errors.gender}
+          InputProps={{
+            startAdornment: (
               <InputAdornment position="start">
                 <WcIcon color="action" />
               </InputAdornment>
-            }
-          >
-            <MenuItem value="Male">Male</MenuItem>
-            <MenuItem value="Female">Female</MenuItem>
-            <MenuItem value="Other">Other</MenuItem>
-          </Select>
-          {errors.gender && (
-            <div
-              style={{
-                color: "#d32f2f",
-                fontSize: "0.75rem",
-                marginTop: "3px",
-                marginLeft: "14px",
-              }}
-            >
-              {errors.gender}
-            </div>
-          )}
-        </FormControl>
+            ),
+          }}
+          sx={{
+            bgcolor: "white",
+            "& .MuiInputBase-root": { width: "100%" },
+          }}
+        >
+          <MenuItem value="Male">Male</MenuItem>
+          <MenuItem value="Female">Female</MenuItem>
+          <MenuItem value="Other">Other</MenuItem>
+        </TextField>
       </Grid>
+
+      {/* Row 4: Religion */}
       <Grid item xs={12} md={5.8}>
         <TextField
+          select
           label="Religion"
           name="religion"
           value={form.religion}
@@ -391,15 +412,20 @@ const StudentForm = ({
           size="small"
           error={!!errors.religion}
           helperText={errors.religion}
+          sx={{ bgcolor: "white", "& .MuiInputBase-root": { width: "100%" } }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <AccountBalanceIcon color="action" />
+                <PublicIcon color="action" />
               </InputAdornment>
             ),
           }}
-          sx={{ bgcolor: "white" }}
-        />
+        >
+          <MenuItem value="Hindu">Hindu</MenuItem>
+          <MenuItem value="Muslim">Muslim</MenuItem>
+          <MenuItem value="Christian">Christian</MenuItem>
+          <MenuItem value="Other">Other</MenuItem>
+        </TextField>
       </Grid>
 
       {/* Row 5: Birth Place | Fee Scholarship */}
