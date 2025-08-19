@@ -39,6 +39,7 @@ const {
   getStudentsForFees,
   getFeesReceipt,
   getNextReceiptNumber,
+  getStudentTermSummary,
 } = require("./server/fees");
 const {
   getClassShifts,
@@ -502,3 +503,30 @@ ipcMain.handle("get-fees-receipt", async (event, receiptNumber) => {
     });
   });
 });
+
+ipcMain.handle(
+  "get-student-term-summary",
+  async (event, studentId, academicYearId = null) => {
+    return new Promise((resolve) => {
+      try {
+        getStudentTermSummary(studentId, academicYearId, (err, summary) => {
+          if (err) {
+            console.error(
+              "[main.js] Error in 'get-student-term-summary' handler:",
+              err
+            );
+            resolve({ success: false, error: err.message });
+          } else {
+            resolve({ success: true, summary });
+          }
+        });
+      } catch (e) {
+        console.error(
+          "[main.js] Exception in 'get-student-term-summary' handler:",
+          e
+        );
+        resolve({ success: false, error: e.message });
+      }
+    });
+  }
+);

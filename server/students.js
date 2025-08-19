@@ -236,10 +236,15 @@ function addStudent(studentData) {
                 return;
               }
               let total_fees_calc = 0;
+              let fee_breakdown_json = null;
               try {
                 if (classRow && classRow.fees) {
                   const feesObj = JSON.parse(classRow.fees);
-                  total_fees_calc = (feesObj.term1 || 0) + (feesObj.term2 || 0);
+                  const term1 = Number(feesObj.term1) || 0;
+                  const term2 = Number(feesObj.term2) || 0;
+                  const books = Number(feesObj.books ?? feesObj.books_charge) || 0;
+                  total_fees_calc = term1 + term2 + books;
+                  fee_breakdown_json = JSON.stringify({ term1, term2, books });
                 }
               } catch (e) {
                 console.warn(
@@ -268,9 +273,9 @@ function addStudent(studentData) {
                     INSERT INTO students (
                       name, roll_number, class_id, shift_id, division, academic_year_id, parents_contact1, parents_contact2,
                       admission_date, gender, mother_name, father_name,
-                      fee_scholarship, birth_place, religion, address, total_fees, pending_fees
+                      fee_scholarship, birth_place, religion, address, total_fees, pending_fees, fee_breakdown
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                   `,
                     [
                       name,
@@ -291,6 +296,7 @@ function addStudent(studentData) {
                       address,
                       total_fees_calc,
                       pending_fees_init,
+                      fee_breakdown_json,
                     ],
                     function (err) {
                       if (err) {
@@ -310,6 +316,7 @@ function addStudent(studentData) {
                           academic_year_id: yearIdToUse,
                           total_fees: total_fees_calc,
                           pending_fees: pending_fees_init,
+                          fee_breakdown: fee_breakdown_json,
                         });
                       }
                     }
@@ -392,60 +399,90 @@ function updateStudent(studentData) {
             )
           );
         } else {
-          db.run(
-            `
-            UPDATE students SET 
-              name = ?, 
-              roll_number = ?, 
-              class_id = ?, 
-              shift_id = ?,
-              division = ?,
-              parents_contact1 = ?,
-              parents_contact2 = ?,
-              admission_date = ?,
-              gender = ?,
-              mother_name = ?,
-              father_name = ?,
-              fee_scholarship = ?,
-              birth_place = ?,
-              religion = ?,
-              address = ?
-            WHERE id = ?
-          `,
-            [
-              name,
-              roll_number,
-              class_id,
-              shift_id,
-              division || null,
-              parents_contact1,
-              parents_contact2,
-              admission_date,
-              gender,
-              mother_name,
-              father_name,
-              fee_scholarship,
-              birth_place,
-              religion,
-              address,
-              id,
-            ],
-            function (err) {
-              if (err) {
-                console.error(
-                  "[server/students.js] Error updating student:",
-                  err
-                );
-                reject(err);
-              } else {
-                console.log(
-                  "[server/students.js] Student updated with ID:",
-                  id
-                );
-                resolve({ id, ...studentData });
-              }
+          // Recompute fee_breakdown, total_fees, and pending_fees from class fees + scholarship
+          db.get(`SELECT fees FROM classes WHERE id = ?`, [class_id], (cErr, cRow) => {
+            if (cErr) {
+              console.error("[server/students.js] Error fetching class fees for update:", cErr);
+              return reject(cErr);
             }
-          );
+            let fee_breakdown_json = null;
+            let total_fees_calc = 0;
+            try {
+              if (cRow && cRow.fees) {
+                const feesObj = JSON.parse(cRow.fees);
+                const term1 = Number(feesObj.term1) || 0;
+                const term2 = Number(feesObj.term2) || 0;
+                const books = Number(feesObj.books ?? feesObj.books_charge) || 0;
+                total_fees_calc = term1 + term2 + books;
+                fee_breakdown_json = JSON.stringify({ term1, term2, books });
+              }
+            } catch (e) {
+              console.warn("[server/students.js] Failed parsing class fees JSON on update; keeping totals 0");
+            }
+            const scholarshipAmount = parseFloat(fee_scholarship) || 0;
+            const pending_fees_calc = Math.max(0, total_fees_calc - scholarshipAmount);
+
+            db.run(
+              `
+              UPDATE students SET 
+                name = ?, 
+                roll_number = ?, 
+                class_id = ?, 
+                shift_id = ?,
+                division = ?,
+                parents_contact1 = ?,
+                parents_contact2 = ?,
+                admission_date = ?,
+                gender = ?,
+                mother_name = ?,
+                father_name = ?,
+                fee_scholarship = ?,
+                birth_place = ?,
+                religion = ?,
+                address = ?,
+                total_fees = ?,
+                pending_fees = ?,
+                fee_breakdown = ?
+              WHERE id = ?
+            `,
+              [
+                name,
+                roll_number,
+                class_id,
+                shift_id,
+                division || null,
+                parents_contact1,
+                parents_contact2,
+                admission_date,
+                gender,
+                mother_name,
+                father_name,
+                fee_scholarship,
+                birth_place,
+                religion,
+                address,
+                total_fees_calc,
+                pending_fees_calc,
+                fee_breakdown_json,
+                id,
+              ],
+              function (err) {
+                if (err) {
+                  console.error(
+                    "[server/students.js] Error updating student:",
+                    err
+                  );
+                  reject(err);
+                } else {
+                  console.log(
+                    "[server/students.js] Student updated with ID:",
+                    id
+                  );
+                  resolve({ id, ...studentData, total_fees: total_fees_calc, pending_fees: pending_fees_calc, fee_breakdown: fee_breakdown_json });
+                }
+              }
+            );
+          });
         }
       }
     );

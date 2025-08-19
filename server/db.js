@@ -348,6 +348,18 @@ db.serialize(() => {
     }
   });
 
+  // Migration: add fee_term and fee_charge to fees if missing (for term/charge allocation)
+  db.all("PRAGMA table_info(fees)", (err, columns) => {
+    if (err || !columns) return;
+    const colNames = columns.map((c) => c.name);
+    if (!colNames.includes("fee_term")) {
+      db.run(`ALTER TABLE fees ADD COLUMN fee_term TEXT`);
+    }
+    if (!colNames.includes("fee_charge")) {
+      db.run(`ALTER TABLE fees ADD COLUMN fee_charge TEXT`);
+    }
+  });
+
   // Migration: Rebuild students table if it has admission_end_date, lacks division, or wrong UNIQUE
   db.get(
     "SELECT sql FROM sqlite_master WHERE type='table' AND name='students'",
@@ -386,6 +398,7 @@ db.serialize(() => {
             academic_year_id INTEGER,
             total_fees INTEGER,
             pending_fees INTEGER,
+            fee_breakdown TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (class_id) REFERENCES classes (id),
             UNIQUE (roll_number, class_id, shift_id, division)
@@ -401,12 +414,12 @@ db.serialize(() => {
               `INSERT INTO students_new (
               id, name, roll_number, class_id, shift_id, division, parents_contact1, parents_contact2, admission_date,
               gender, mother_name, father_name, fee_scholarship, birth_place, religion, address,
-              academic_year_id, total_fees, pending_fees, created_at
+              academic_year_id, total_fees, pending_fees, fee_breakdown, created_at
             )
             SELECT 
               id, name, roll_number, class_id, shift_id, NULL as division, parents_contact1, parents_contact2, admission_date,
               gender, mother_name, father_name, fee_scholarship, birth_place, religion, address,
-              academic_year_id, total_fees, pending_fees, created_at
+              academic_year_id, total_fees, pending_fees, NULL as fee_breakdown, created_at
             FROM students;`,
               (copyErr) => {
                 if (copyErr) {
@@ -451,6 +464,15 @@ db.serialize(() => {
       }
     }
   );
+
+  // Migration: ensure fee_breakdown column exists on students for existing correct schema
+  db.all("PRAGMA table_info(students)", (err, columns) => {
+    if (err || !columns) return;
+    const names = columns.map((c) => c.name);
+    if (!names.includes("fee_breakdown")) {
+      db.run(`ALTER TABLE students ADD COLUMN fee_breakdown TEXT`);
+    }
+  });
 
   // Migration: add division_id to classes if not exists
   db.all("PRAGMA table_info(classes)", (err, columns) => {

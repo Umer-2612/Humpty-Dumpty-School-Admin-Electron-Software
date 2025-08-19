@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-fees-receipt", receiptNumber),
   getNextReceiptNumber: (paymentType) =>
     ipcRenderer.invoke("get-next-receipt-number", paymentType),
+  getStudentTermSummary: (studentId, academicYearId = null) =>
+    ipcRenderer.invoke("get-student-term-summary", studentId, academicYearId),
 
   // Academic Year API methods
   listAcademicYears: () => ipcRenderer.invoke("list-academic-years"),

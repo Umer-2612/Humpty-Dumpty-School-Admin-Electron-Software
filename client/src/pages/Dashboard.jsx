@@ -17,6 +17,7 @@ import PendingActionsIcon from "@mui/icons-material/PendingActions";
 import TodayIcon from "@mui/icons-material/Today";
 import { teal } from "@mui/material/colors";
 import { useBranch } from "../context/useBranch";
+import { useYear } from "../context/YearProvider.jsx";
 
 const currency = (n) =>
   typeof n === "number"
@@ -81,6 +82,7 @@ const Card = ({ title, value, icon, sub, accent = teal[600], trend }) => (
 
 const Dashboard = () => {
   const { selected: selectedBranch } = useBranch?.() || {};
+  const { selected: selectedYear } = useYear();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -117,11 +119,11 @@ const Dashboard = () => {
         return;
       }
       const [studentsRes, staffRes, transportRes, feesRes] = await Promise.all([
-        // Branch-scoped
-        window?.electronAPI?.getStudents?.(selectedBranch.id),
-        safeCall("getTeachers"),
-        safeCall("getTransport"),
-        window?.electronAPI?.getFees?.(selectedBranch.id),
+        // Branch- and Year-scoped where applicable
+        window?.electronAPI?.getStudents?.(selectedBranch.id, selectedYear?.id || null),
+        safeCall("getTeachers"), // not year-scoped yet
+        safeCall("getTransport"), // not year-scoped yet
+        window?.electronAPI?.getFees?.(selectedBranch.id, selectedYear?.id || null),
       ]);
       if (!mounted) return;
       setStudents(Array.isArray(studentsRes) ? studentsRes : []);
@@ -140,7 +142,7 @@ const Dashboard = () => {
     return () => {
       mounted = false;
     };
-  }, [selectedBranch?.id]);
+  }, [selectedBranch?.id, selectedYear?.id]);
 
   const now = new Date();
   const monthStart = useMemo(
@@ -274,6 +276,13 @@ const Dashboard = () => {
               <Chip
                 size="small"
                 label={selectedBranch.name}
+                sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "#fff" }}
+              />
+            )}
+            {selectedYear?.name && (
+              <Chip
+                size="small"
+                label={selectedYear.name}
                 sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "#fff" }}
               />
             )}

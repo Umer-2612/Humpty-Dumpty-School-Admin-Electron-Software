@@ -2,14 +2,16 @@ import { useState } from "react";
 import "./App.css";
 import Sidebar from "./component/Sidebar";
 import MainContent from "./component/MainContent";
-import { Box } from "@mui/material";
+import { Box, Button, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "./theme";
 import YearSwitcher from "./component/YearSwitcher";
 import { useYear } from "./context/YearProvider.jsx";
+import YearManagerDialog from "./component/YearManagerDialog.jsx";
 
 function App() {
   const [activePage, setActivePage] = useState("Dashboard");
+  const [yearMgrOpen, setYearMgrOpen] = useState(false);
   const { hasChosenYear, loading: yearLoading } = useYear();
 
   // Gate: Require explicit year selection before app loads
@@ -26,10 +28,17 @@ function App() {
             p: 3,
           }}
         >
-          <Box sx={{ width: 360, maxWidth: "90vw" }}>
+          <Stack spacing={2} sx={{ width: 360, maxWidth: "90vw" }}>
             <YearSwitcher compact={false} />
-          </Box>
+            {/* <Button variant="outlined" onClick={() => setYearMgrOpen(true)}>
+              Manage Academic Years
+            </Button> */}
+          </Stack>
         </Box>
+        <YearManagerDialog
+          open={yearMgrOpen}
+          onClose={() => setYearMgrOpen(false)}
+        />
       </ThemeProvider>
     );
   }
