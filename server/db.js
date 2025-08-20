@@ -2,7 +2,9 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 
-// Use Electron's userData path in production so the DB is writable
+// Determine DB directory
+// Prefer Electron's userData (packaged/dev) so DB is writable per user.
+// Fallback to the current directory when not running under Electron.
 let dbDir;
 try {
   const { app } = require("electron");
@@ -10,32 +12,52 @@ try {
     dbDir = app.getPath("userData");
   }
 } catch (_) {
-  // Not running under Electron (e.g., during scripts/tests)
+  // Not running under Electron
 }
-
-// Fallback to current directory in non-Electron contexts
 if (!dbDir) {
   dbDir = __dirname;
 }
 
-// Ensure directory exists
-try {
-  if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-} catch (e) {
-  // As a last resort, use __dirname
-  dbDir = __dirname;
-}
-
 const dbPath = path.join(dbDir, "school.db");
+const logPath = path.join(dbDir, "db-debug.log");
 
-console.log("[db.js] Database path:", dbPath);
+const log = (msg) => {
+  try {
+    fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+  } catch (_) {}
+  try { console.log(msg); } catch(_) {}
+};
+
+log(`Database dir: ${dbDir}`);
+log(`Database path: ${dbPath}`);
 
 // Create DB file if not exists
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, "");
+try {
+  // Ensure parent directory exists
+  const parent = path.dirname(dbPath);
+  if (!fs.existsSync(parent)) {
+    fs.mkdirSync(parent, { recursive: true });
+  }
+  if (!fs.existsSync(dbPath)) {
+    fs.writeFileSync(dbPath, "");
+  }
+} catch (fsErr) {
+  log(`[db.js] Failed to prepare database file/directory: ${fsErr?.message || fsErr}`);
 }
 
-const db = new sqlite3.Database(dbPath);
+let db;
+try {
+  db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
+    if (err) {
+      log(`[db.js] sqlite open error: ${err.message}`);
+    } else {
+      log(`[db.js] sqlite opened successfully.`);
+    }
+  });
+} catch (openErr) {
+  log(`[db.js] Failed to open SQLite database: ${openErr?.message || openErr}`);
+  throw openErr;
+}
 
 // Initialize schema
 db.serialize(() => {

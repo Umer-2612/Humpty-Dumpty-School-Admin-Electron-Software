@@ -1,59 +1,34 @@
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
-const { getBranches } = require("./server/branches");
-const {
-  getStudents,
+// Defer requiring backend modules until app is ready so db.js can resolve userData path
+let getBranches;
+let getStudents,
   searchStudents,
   addStudent,
   getClasses,
   getNextRollNumber,
   updateStudent,
   deleteStudent,
-  getStudentById,
-} = require("./server/students");
-const {
-  getClassesByBranch,
-  addClass,
-  updateClass,
-  deleteClass,
-} = require("./server/classes");
-const { getSetting, setSetting } = require("./server/settings");
-const {
-  getTeachers,
-  addTeacher,
-  updateTeacher,
-  deleteTeacher,
-} = require("./server/teachers");
-const {
-  getTransport,
-  addTransport,
-  updateTransport,
-  deleteTransport,
-} = require("./server/transport");
-const {
-  getFees,
+  getStudentById;
+let getClassesByBranch, addClass, updateClass, deleteClass;
+let getSetting, setSetting;
+let getTeachers, addTeacher, updateTeacher, deleteTeacher;
+let getTransport, addTransport, updateTransport, deleteTransport;
+let getFees,
   addFees,
   updateFees,
   deleteFees,
   getStudentsForFees,
   getFeesReceipt,
   getNextReceiptNumber,
-  getStudentTermSummary,
-} = require("./server/fees");
-const {
-  getClassShifts,
-  addClassShift,
-  updateClassShift,
-  deleteClassShift,
-} = require("./server/class_shifts");
-const {
-  listAcademicYears,
+  getStudentTermSummary;
+let getClassShifts, addClassShift, updateClassShift, deleteClassShift;
+let listAcademicYears,
   addAcademicYear,
   updateAcademicYear,
   setActiveAcademicYear,
-  getActiveAcademicYear,
-} = require("./server/academic_years");
+  getActiveAcademicYear;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -82,6 +57,52 @@ ipcMain.handle("get-student-by-id", async (event, id) => {
 }
 
 app.whenReady().then(() => {
+  try {
+    ({ getBranches } = require("./server/branches"));
+    ({
+      getStudents,
+      searchStudents,
+      addStudent,
+      getClasses,
+      getNextRollNumber,
+      updateStudent,
+      deleteStudent,
+      getStudentById,
+    } = require("./server/students"));
+    ({ getClassesByBranch, addClass, updateClass, deleteClass } = require(
+      "./server/classes"
+    ));
+    ({ getSetting, setSetting } = require("./server/settings"));
+    ({ getTeachers, addTeacher, updateTeacher, deleteTeacher } = require(
+      "./server/teachers"
+    ));
+    ({ getTransport, addTransport, updateTransport, deleteTransport } = require(
+      "./server/transport"
+    ));
+    ({
+      getFees,
+      addFees,
+      updateFees,
+      deleteFees,
+      getStudentsForFees,
+      getFeesReceipt,
+      getNextReceiptNumber,
+      getStudentTermSummary,
+    } = require("./server/fees"));
+    ({ getClassShifts, addClassShift, updateClassShift, deleteClassShift } = require(
+      "./server/class_shifts"
+    ));
+    ({
+      listAcademicYears,
+      addAcademicYear,
+      updateAcademicYear,
+      setActiveAcademicYear,
+      getActiveAcademicYear,
+    } = require("./server/academic_years"));
+  } catch (e) {
+    console.error("[main.js] Failed to initialize backend modules:", e);
+  }
+
   createWindow();
 });
 

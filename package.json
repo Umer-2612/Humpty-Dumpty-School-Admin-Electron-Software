@@ -33,7 +33,8 @@
       "preload.js",
       "server/**/*",
       "client/dist/**/*",
-      "package.json"
+      "package.json",
+      "!**/*.db"
     ],
     "asar": true,
     "win": {

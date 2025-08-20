@@ -1,8 +1,5 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-
-const dbPath = path.join(__dirname, "school.db");
-const db = new sqlite3.Database(dbPath);
+// Reuse the shared SQLite connection which resolves to Electron userData
+const db = require("./db");
 
 // Compute next sequential receipt number by payment type
 // type: 'cash' | 'bank' -> prefixes: 'c' | 'b'
