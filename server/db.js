@@ -2,9 +2,33 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const fs = require("fs");
 
-const dbPath = path.join(__dirname, "school.db");
+// Use Electron's userData path in production so the DB is writable
+let dbDir;
+try {
+  const { app } = require("electron");
+  if (app && typeof app.getPath === "function") {
+    dbDir = app.getPath("userData");
+  }
+} catch (_) {
+  // Not running under Electron (e.g., during scripts/tests)
+}
 
-console.log("Database path:", dbPath);
+// Fallback to current directory in non-Electron contexts
+if (!dbDir) {
+  dbDir = __dirname;
+}
+
+// Ensure directory exists
+try {
+  if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+} catch (e) {
+  // As a last resort, use __dirname
+  dbDir = __dirname;
+}
+
+const dbPath = path.join(dbDir, "school.db");
+
+console.log("[db.js] Database path:", dbPath);
 
 // Create DB file if not exists
 if (!fs.existsSync(dbPath)) {
