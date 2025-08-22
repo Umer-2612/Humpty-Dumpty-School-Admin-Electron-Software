@@ -5,7 +5,6 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
 import CloseIcon from "@mui/icons-material/Close";
-import Grid from "@mui/material/Grid";
 import { teal, grey, green } from "@mui/material/colors";
 import Avatar from "@mui/material/Avatar";
 import Stack from "@mui/material/Stack";
@@ -77,20 +76,6 @@ export default function ViewStudentModal({
     if (v === 2 || v === "2") return "Afternoon";
     return v ?? "-";
   };
-
-  const Label = ({ children }) => (
-    <Typography variant="caption" sx={{ color: grey[600], fontWeight: 600 }}>
-      {children}
-    </Typography>
-  );
-  const Value = ({ children }) => (
-    <Typography
-      variant="body2"
-      sx={{ fontWeight: 600, color: grey[900], lineHeight: 1.3 }}
-    >
-      {children ?? "-"}
-    </Typography>
-  );
 
   const Section = ({ icon, title, children }) => (
     <Box sx={{ mb: 1.5 }}>

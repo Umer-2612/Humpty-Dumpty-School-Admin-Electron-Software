@@ -32,7 +32,8 @@ const MainContent = ({ activePage }) => {
         flexGrow: 1,
         padding: "20px",
         height: "100%",
-        overflow: "hidden",
+        minHeight: 0,
+        overflow: "visible",
         display: "flex",
         flexDirection: "column",
       }}

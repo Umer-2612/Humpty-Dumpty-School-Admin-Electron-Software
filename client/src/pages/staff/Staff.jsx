@@ -238,7 +238,7 @@ const Staff = () => {
   };
 
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Staff</h1>
         <Button
@@ -254,8 +254,8 @@ const Staff = () => {
       {success && (
         <div className="text-green-600 mb-2 font-medium">{success}</div>
       )}
-      <Paper elevation={2} sx={{ p: 3 }}>
-        <div style={{ width: "100%", height: "70vh" }}>
+      <Paper elevation={2} sx={{ p: 3, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <div style={{ width: "100%", height: "100%", minHeight: 0 }}>
           {settingsLoaded && (
             <TableWrapper
               columns={columns}

@@ -213,7 +213,15 @@ const Transport = () => {
   ];
 
   return (
-    <div style={{ width: "100%" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      }}
+    >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Transport</h1>
         <Button
@@ -226,14 +234,23 @@ const Transport = () => {
         </Button>
       </div>
 
-      <Paper elevation={2} sx={{ p: 3 }}>
+      <Paper
+        elevation={2}
+        sx={{
+          p: 3,
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <DirectionsBusIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Transport
           </Typography>
         </Box> */}
-        <div style={{ width: "100%", height: "70vh" }}>
+        <div style={{ width: "100%", height: "100%", minHeight: 0 }}>
           <TableWrapper
             columns={columns}
             rows={transportWithSrNo}

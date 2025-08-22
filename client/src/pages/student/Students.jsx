@@ -1,5 +1,16 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Button from "@mui/material/Button";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from "@mui/material";
 import AddStudentModal from "./AddStudentModal";
 import EditStudentModal from "./EditStudentModal";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
@@ -44,12 +55,216 @@ const Students = () => {
   const [success, setSuccess] = useState("");
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportClassId, setReportClassId] = useState("");
+  const [reportShiftId, setReportShiftId] = useState("");
+  const [reportGender, setReportGender] = useState("");
+
+  // Map shifts by id for quick lookup (for report column)
+  const shiftsById = useMemo(() => {
+    const m = new Map();
+    (shifts || []).forEach((s) => m.set(String(s.id), s));
+    return m;
+  }, [shifts]);
 
   // Add serial numbers to students data
   const studentsWithSrNo = students.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
+
+  // Filtered rows for Report dialog
+  const reportFiltered = useMemo(() => {
+    let list = students;
+    if (reportClassId) {
+      list = list.filter(
+        (s) => String(s.class_id || s.classId) === String(reportClassId)
+      );
+    }
+    if (reportShiftId) {
+      list = list.filter(
+        (s) => String(s.shift_id || s.shiftId) === String(reportShiftId)
+      );
+    }
+    if (reportGender) {
+      list = list.filter(
+        (s) => String(s.gender || "").toLowerCase() === reportGender
+      );
+    }
+    return list.map((item, index) => {
+      // derive shift display once to avoid grid valueGetter issues
+      const direct = item.shift_name || item.shift || item.shiftName;
+      let shift_display = direct || "";
+      if (!shift_display) {
+        const maybeId = item.shift_id ?? item.shiftId ?? item.class_shift_id;
+        if (maybeId != null) {
+          const s = shiftsById.get(String(maybeId));
+          shift_display = s ? s.shift_name || s.name || "" : "";
+        }
+      }
+      return { ...item, srNo: index + 1, shift_display };
+    });
+  }, [students, reportClassId, reportShiftId, reportGender, shiftsById]);
+
+  // Report modal columns: only 5 fields
+  const reportColumns = useMemo(
+    () => [
+      {
+        field: "srNo",
+        headerName: "Sr No",
+        width: 90,
+        headerAlign: "center",
+        align: "center",
+      },
+      {
+        field: "name",
+        headerName: "Student Name",
+        flex: 1,
+        minWidth: 160,
+      },
+      {
+        field: "parents_contact1",
+        headerName: "Parent Contact 1",
+        flex: 0.8,
+        minWidth: 140,
+      },
+      {
+        field: "parents_contact2",
+        headerName: "Parent Contact 2",
+        flex: 0.8,
+        minWidth: 140,
+      },
+      {
+        field: "class_name",
+        headerName: "Class",
+        flex: 0.8,
+        minWidth: 120,
+      },
+      {
+        field: "shift_display",
+        headerName: "Shift",
+        flex: 0.8,
+        minWidth: 120,
+      },
+    ],
+    [shiftsById]
+  );
+
+  // Build report HTML string (used by Print and Save)
+  const buildReportHtml = useCallback((rows) => {
+    const columns = [
+      { key: "srNo", title: "Sr No" },
+      { key: "name", title: "Student Name" },
+      { key: "parents_contact1", title: "Parent Contact 1" },
+      { key: "parents_contact2", title: "Parent Contact 2" },
+      { key: "class_name", title: "Class" },
+      { key: "shift_display", title: "Shift" },
+    ];
+
+    const htmlRows = (rows || [])
+      .map((r) => {
+        const vals = [
+          r.srNo || "",
+          r.name || "",
+          r.parents_contact1 || "",
+          r.parents_contact2 || "",
+          r.class_name || "",
+          r.shift_display || "",
+        ].map((v) =>
+          String(v)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+        );
+        return `<tr>${vals.map((v) => `<td>${v}</td>`).join("")}</tr>`;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Student Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 16px; }
+          h2 { margin: 0 0 12px 0; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
+          th { background: #f0f0f0; text-align: left; }
+          @media print {
+            @page { size: A4; margin: 12mm; }
+            thead { display: table-header-group; }
+            tfoot { display: table-row-group; }
+          }
+        </style>
+      </head>
+      <body>
+        <h2>Student Report</h2>
+        <table>
+          <thead>
+            <tr>${columns.map((c) => `<th>${c.title}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${htmlRows}
+          </tbody>
+        </table>
+      </body>
+      </html>`;
+    return html;
+  }, []);
+
+  // Print: open print dialog with all filtered rows
+  const printReport = useCallback(() => {
+    const html = buildReportHtml(reportFiltered);
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.open();
+      w.document.write(
+        html.replace(
+          "</body>",
+          "<script>window.onload = function(){ window.print(); }</script></body>"
+        )
+      );
+      w.document.close();
+    }
+  }, [reportFiltered, buildReportHtml]);
+
+  // Save: show native Save dialog and write HTML file
+  const saveReport = useCallback(async () => {
+    try {
+      const html = buildReportHtml(reportFiltered);
+      const ts = new Date().toISOString().slice(0, 10);
+      const defaultPathPdf = `student-report-${ts}.pdf`;
+      // Prefer native PDF save via Electron
+      const res = await window.electronAPI?.saveStudentReportPdf?.(
+        html,
+        defaultPathPdf
+      );
+      if (res && res.success) {
+        console.log("Report saved to", res.path);
+        return;
+      }
+      // Fallbacks:
+      // 1) If running in browser: open print dialog so user can choose "Save as PDF"
+      if (!window.electronAPI?.saveStudentReportPdf) {
+        printReport();
+        return;
+      }
+      // 2) As a last resort, download HTML (ensures user still gets a file)
+      const defaultPathHtml = `student-report-${ts}.html`;
+      const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = defaultPathHtml;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Failed to save report:", e);
+    }
+  }, [reportFiltered, buildReportHtml, printReport]);
 
   const columns = useMemo(
     () => [
@@ -164,7 +379,9 @@ const Students = () => {
         minWidth: 130,
         renderCell: (params) => (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <FamilyRestroomIcon
+              sx={{ mr: 1, color: teal[700], fontSize: 18 }}
+            />
             <Tooltip title={params.value || ""}>
               <span>{params.value || ""}</span>
             </Tooltip>
@@ -178,7 +395,9 @@ const Students = () => {
         minWidth: 130,
         renderCell: (params) => (
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <FamilyRestroomIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <FamilyRestroomIcon
+              sx={{ mr: 1, color: teal[700], fontSize: 18 }}
+            />
             <Tooltip title={params.value || ""}>
               <span>{params.value || ""}</span>
             </Tooltip>
@@ -487,17 +706,37 @@ const Students = () => {
   };
 
   return (
-    <div style={{ width: "100%" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      }}
+    >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Students</h1>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setShowAddModal(true)}
-          disabled={loading}
-        >
-          + Add Student
-        </Button>
+        <div className="flex gap-4">
+          <Button
+            variant="outlined"
+            color="secondary"
+            sx={{ mr: 2 }}
+            onClick={() => setReportOpen(true)}
+            disabled={loading}
+          >
+            Report
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            sx={{ ml: 2 }}
+            onClick={() => setShowAddModal(true)}
+            disabled={loading}
+          >
+            + Add Student
+          </Button>
+        </div>
       </div>
       <ViewStudentModal
         open={showViewModal}
@@ -506,19 +745,29 @@ const Students = () => {
         shifts={shifts}
       />
 
-      <Paper elevation={2} sx={{ p: 3 }}>
+      <Paper
+        elevation={2}
+        sx={{
+          p: 3,
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <PersonIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Students
           </Typography>
         </Box> */}
-        <div style={{ width: "100%", height: "70vh" }}>
+        <div style={{ width: "100%", height: "100%", minHeight: 0 }}>
           {settingsLoaded && (
             <TableWrapper
               columns={columns}
               rows={studentsWithSrNo}
               pageSize={10}
+              pageSizeOptions={[10]}
               columnVisibilityModel={columnVisibilityModel}
               onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
               initialState={{
@@ -555,6 +804,112 @@ const Students = () => {
         setError={setError}
         setLoading={setLoading}
       />
+
+      {/* Report Dialog */}
+      <Dialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>Student Report</DialogTitle>
+        <DialogContent dividers>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            sx={{ mb: 2 }}
+          >
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel id="report-class-label">Class</InputLabel>
+              <Select
+                labelId="report-class-label"
+                label="Class"
+                value={reportClassId}
+                onChange={(e) => setReportClassId(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {(classes || []).map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel id="report-shift-label">Shift</InputLabel>
+              <Select
+                labelId="report-shift-label"
+                label="Shift"
+                value={reportShiftId}
+                onChange={(e) => setReportShiftId(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {(shifts || []).map((s) => (
+                  <MenuItem key={s.id} value={s.id}>
+                    {s.shift_name || s.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 160 }}>
+              <InputLabel id="report-gender-label">Gender</InputLabel>
+              <Select
+                labelId="report-gender-label"
+                label="Gender"
+                value={reportGender}
+                onChange={(e) => setReportGender(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                <MenuItem value="male">Male</MenuItem>
+                <MenuItem value="female">Female</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </Select>
+            </FormControl>
+
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => {
+                setReportClassId("");
+                setReportShiftId("");
+                setReportGender("");
+              }}
+              sx={{ ml: "auto" }}
+            >
+              Reset
+            </Button>
+          </Stack>
+
+          <div style={{ width: "100%", height: "60vh" }}>
+            <TableWrapper
+              columns={reportColumns}
+              rows={reportFiltered}
+              pageSize={10}
+              enableExport={false}
+              initialState={{
+                sorting: { sortModel: [{ field: "name", sort: "asc" }] },
+              }}
+            />
+          </div>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" color="primary" onClick={printReport}>
+            Print
+          </Button>
+          <Button variant="outlined" onClick={saveReport}>
+            Save
+          </Button>
+          <Button onClick={() => setReportOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Success Snackbar */}
       <Snackbar

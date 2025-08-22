@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DataGrid, GridToolbarContainer } from "@mui/x-data-grid";
 import Paper from "@mui/material/Paper";
 import {
@@ -24,12 +24,19 @@ export default function TableWrapper({
   style = {},
   enableExport = true,
   exportFileName = "export.csv",
+  pageSizeOptions = [5, 10, 25, 50],
   ...props
 }) {
   const [selectionModel, setSelectionModel] = useState([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportOnlySelected, setExportOnlySelected] = useState(false);
   const [selectedFields, setSelectedFields] = useState(null); // null = use visible
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize });
+
+  // Keep internal paginationModel in sync with pageSize prop
+  useEffect(() => {
+    setPaginationModel((prev) => ({ ...prev, pageSize }));
+  }, [pageSize]);
 
   const isExportable = (c) =>
     c && c.field && c.field !== "actions" && c.exportable !== false;
@@ -122,7 +129,7 @@ export default function TableWrapper({
         ...style,
       }}
     >
-      {enableExport && (
+      {/* {enableExport && (
         <Stack direction="row" spacing={1} sx={{ p: 1, pb: 0 }}>
           <Button
             size="small"
@@ -145,13 +152,15 @@ export default function TableWrapper({
             </Button>
           )}
         </Stack>
-      )}
+      )} */}
       <DataGrid
         rows={rows}
         columns={columns}
-        pageSizeOptions={[5, 10, 25, 50]}
+        pageSizeOptions={pageSizeOptions}
+        pagination
+        paginationModel={paginationModel}
+        onPaginationModelChange={(model) => setPaginationModel(model)}
         initialState={{
-          pagination: { paginationModel: { page: 0, pageSize } },
           sorting: { sortModel: [{ field: "id", sort: "asc" }] },
         }}
         checkboxSelection={checkboxSelection}

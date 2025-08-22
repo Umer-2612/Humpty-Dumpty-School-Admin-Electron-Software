@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const { spawn } = require("child_process");
+const fs = require("fs");
 // Defer requiring backend modules until app is ready so db.js can resolve userData path
 let getBranches;
 let getStudents,
@@ -39,6 +40,52 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+// Utility: Save HTML content directly as PDF using printToPDF
+ipcMain.handle("save-student-report-pdf", async (event, payload) => {
+  const { html, defaultPath } = payload || {};
+  if (!html || typeof html !== "string") {
+    return { success: false, error: "No HTML content provided" };
+  }
+  let pdfWin;
+  try {
+    pdfWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+    const dataUrl = "data:text/html;charset=utf-8," + encodeURIComponent(html);
+    await pdfWin.loadURL(dataUrl);
+    const pdf = await pdfWin.webContents.printToPDF({
+      marginsType: 1,
+      pageSize: "A4",
+      printBackground: true,
+      landscape: false,
+    });
+
+    const win = BrowserWindow.getFocusedWindow();
+    const { canceled, filePath } = await dialog.showSaveDialog(win || null, {
+      title: "Save Student Report PDF",
+      defaultPath: defaultPath || "student-report.pdf",
+      filters: [
+        { name: "PDF", extensions: ["pdf"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+    if (canceled || !filePath) {
+      return { success: false, canceled: true };
+    }
+    await fs.promises.writeFile(filePath, pdf);
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error("[main.js] Error in 'save-student-report-pdf':", error);
+    return { success: false, error: error.message };
+  } finally {
+    if (pdfWin) pdfWin.destroy();
+  }
+});
 
 ipcMain.handle("get-student-by-id", async (event, id) => {
   try {
@@ -104,6 +151,33 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+});
+
+// Utility: Save HTML content via a Save dialog
+ipcMain.handle("save-student-report", async (event, payload) => {
+  try {
+    const { html, defaultPath } = payload || {};
+    if (!html || typeof html !== "string") {
+      throw new Error("No HTML content provided");
+    }
+    const win = BrowserWindow.getFocusedWindow();
+    const { canceled, filePath } = await dialog.showSaveDialog(win || null, {
+      title: "Save Student Report",
+      defaultPath: defaultPath || "student-report.html",
+      filters: [
+        { name: "HTML Files", extensions: ["html", "htm"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+    });
+    if (canceled || !filePath) {
+      return { success: false, canceled: true };
+    }
+    await fs.promises.writeFile(filePath, html, "utf-8");
+    return { success: true, path: filePath };
+  } catch (error) {
+    console.error("[main.js] Error in 'save-student-report':", error);
+    return { success: false, error: error.message };
+  }
 });
 
 // Academic Years IPC handlers (top-level)

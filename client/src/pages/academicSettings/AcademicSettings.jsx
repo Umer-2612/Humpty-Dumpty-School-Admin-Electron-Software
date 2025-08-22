@@ -396,7 +396,15 @@ const AcademicSettings = () => {
   const [deletingShift, setDeletingShift] = useState(null);
 
   return (
-    <div style={{ width: "100%" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      }}
+    >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Academic Settings</h1>
       </div>
@@ -404,7 +412,17 @@ const AcademicSettings = () => {
       {success && (
         <div className="text-green-600 mb-2 font-medium">{success}</div>
       )}
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+      <Paper
+        elevation={2}
+        sx={{
+          p: 3,
+          mb: 3,
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -431,7 +449,9 @@ const AcademicSettings = () => {
             + Add Class
           </Button>
         </Box>
-        <div style={{ maxHeight: "220px", overflow: "auto", marginTop: 24 }}>
+        <div
+          style={{ width: "100%", height: "100%", minHeight: 0, marginTop: 24 }}
+        >
           {settingsLoaded && (
             <TableWrapper
               columns={classColumns}
@@ -443,7 +463,16 @@ const AcademicSettings = () => {
           )}
         </div>
       </Paper>
-      <Paper elevation={2} sx={{ p: 3 }}>
+      <Paper
+        elevation={2}
+        sx={{
+          p: 3,
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <AccessTimeIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -470,7 +499,9 @@ const AcademicSettings = () => {
             + Add Shift
           </Button>
         </Box>
-        <div style={{ maxHeight: "220px", overflow: "auto", marginTop: 24 }}>
+        <div
+          style={{ width: "100%", height: "60vh", minHeight: 0, marginTop: 24 }}
+        >
           {settingsLoaded && (
             <TableWrapper
               columns={shiftColumns}

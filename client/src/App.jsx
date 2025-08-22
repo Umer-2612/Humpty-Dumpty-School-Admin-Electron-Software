@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import Sidebar from "./component/Sidebar";
 import MainContent from "./component/MainContent";
-import { Box, Button, Stack } from "@mui/material";
+import { Box, Stack } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "./theme";
 import YearSwitcher from "./component/YearSwitcher";
@@ -29,10 +29,7 @@ function App() {
           }}
         >
           <Stack spacing={2} sx={{ width: 360, maxWidth: "90vw" }}>
-            <YearSwitcher compact={false} />
-            {/* <Button variant="outlined" onClick={() => setYearMgrOpen(true)}>
-              Manage Academic Years
-            </Button> */}
+            <YearSwitcher compact={false} onOpenManager={() => setYearMgrOpen(true)} />
           </Stack>
         </Box>
         <YearManagerDialog
@@ -53,8 +50,9 @@ function App() {
             flexGrow: 1,
             p: 3,
             backgroundColor: theme.palette.background.default,
-            height: "100vh",
-            overflow: "hidden",
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
             display: "flex",
             flexDirection: "column",
           }}

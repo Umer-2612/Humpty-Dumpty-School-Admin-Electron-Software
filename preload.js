@@ -55,6 +55,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getStudentTermSummary: (studentId, academicYearId = null) =>
     ipcRenderer.invoke("get-student-term-summary", studentId, academicYearId),
 
+  // Reports
+  saveStudentReport: (html, defaultPath) =>
+    ipcRenderer.invoke("save-student-report", { html, defaultPath }),
+  saveStudentReportPdf: (html, defaultPath) =>
+    ipcRenderer.invoke("save-student-report-pdf", { html, defaultPath }),
+
   // Academic Year API methods
   listAcademicYears: () => ipcRenderer.invoke("list-academic-years"),
   addAcademicYear: (payload) => ipcRenderer.invoke("add-academic-year", payload),
