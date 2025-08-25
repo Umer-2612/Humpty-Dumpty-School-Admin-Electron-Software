@@ -9,6 +9,7 @@ let getStudents,
   addStudent,
   getClasses,
   getNextRollNumber,
+  getNextRollNumberByEntry,
   updateStudent,
   deleteStudent,
   getStudentById;
@@ -25,6 +26,7 @@ let getFees,
   getNextReceiptNumber,
   getStudentTermSummary;
 let getClassShifts, addClassShift, updateClassShift, deleteClassShift;
+let listClassEntriesByBranch, addClassEntry, updateClassEntry, deleteClassEntry;
 let listAcademicYears,
   addAcademicYear,
   updateAcademicYear,
@@ -39,6 +41,46 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.js"),
     },
+  });
+
+  // Unified Class Entries IPC handlers
+  ipcMain.handle("list-class-entries-by-branch", async (event, branch_id) => {
+    try {
+      return await listClassEntriesByBranch(branch_id);
+    } catch (error) {
+      console.error("[main.js] Error in 'list-class-entries-by-branch':", error);
+      return [];
+    }
+  });
+
+  ipcMain.handle("add-class-entry", async (event, payload) => {
+    try {
+      const result = await addClassEntry(payload);
+      return { success: true, entry: result };
+    } catch (error) {
+      console.error("[main.js] Error in 'add-class-entry':", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("update-class-entry", async (event, payload) => {
+    try {
+      const result = await updateClassEntry(payload);
+      return { success: true, entry: result };
+    } catch (error) {
+      console.error("[main.js] Error in 'update-class-entry':", error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle("delete-class-entry", async (event, id) => {
+    try {
+      const result = await deleteClassEntry(id);
+      return { success: true, id: result.id };
+    } catch (error) {
+      console.error("[main.js] Error in 'delete-class-entry':", error);
+      return { success: false, error: error.message };
+    }
   });
 
 // Utility: Save HTML content directly as PDF using printToPDF
@@ -112,6 +154,7 @@ app.whenReady().then(() => {
       addStudent,
       getClasses,
       getNextRollNumber,
+      getNextRollNumberByEntry,
       updateStudent,
       deleteStudent,
       getStudentById,
@@ -139,6 +182,12 @@ app.whenReady().then(() => {
     ({ getClassShifts, addClassShift, updateClassShift, deleteClassShift } = require(
       "./server/class_shifts"
     ));
+    ({
+      listClassEntriesByBranch,
+      addClassEntry,
+      updateClassEntry,
+      deleteClassEntry,
+    } = require("./server/class_entries"));
     ({
       listAcademicYears,
       addAcademicYear,
@@ -267,6 +316,26 @@ ipcMain.handle("get-next-roll-number", async (event, classId, shiftId, division)
     return { success: false, error: error.message };
   }
 });
+
+ipcMain.handle(
+  "get-next-roll-number-by-entry",
+  async (event, classEntryId, division) => {
+    console.log(
+      "[main.js] IPC handler 'get-next-roll-number-by-entry' invoked.",
+      { classEntryId, division }
+    );
+    try {
+      const next = await getNextRollNumberByEntry(classEntryId, division);
+      return { success: true, next };
+    } catch (error) {
+      console.error(
+        "[main.js] Error in 'get-next-roll-number-by-entry' handler:",
+        error
+      );
+      return { success: false, error: error.message };
+    }
+  }
+);
 
 ipcMain.handle("add-student", async (event, studentData) => {
   console.log("[main.js] IPC handler 'add-student' invoked.", studentData);
@@ -592,7 +661,6 @@ ipcMain.handle("get-fees-receipt", async (event, receiptNumber) => {
       if (err) {
         console.error("[main.js] Error in 'get-fees-receipt' handler:", err);
         resolve({ success: false, error: err.message });
-      } else {
         resolve({ success: true, receipt });
       }
     });

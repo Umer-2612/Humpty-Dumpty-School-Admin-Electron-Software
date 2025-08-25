@@ -2,27 +2,170 @@
 const db = require("./db");
 
 // Compute next sequential receipt number by payment type
-// type: 'cash' | 'bank' -> prefixes: 'c' | 'b'
+// type: 'cash' | 'bank' -> prefixes: 'C-' | 'B-'
 const getNextReceiptNumber = (type, cb) => {
-  const prefix = type === 'cash' ? 'c' : 'b';
+  const isCash = String(type).toLowerCase() === 'cash';
+  const displayPrefix = isCash ? 'C-' : 'B-';
+  // Support both legacy (e.g., 'c1'/'b1') and new ('C-1'/'B-1') formats.
+  // We sort by the numeric suffix regardless of the format using INSTR.
   const sql = `
     SELECT receipt_number AS rn
     FROM fees
-    WHERE receipt_number LIKE ?
-    ORDER BY CAST(substr(receipt_number, 2) AS INTEGER) DESC
+    WHERE (receipt_number LIKE ? OR receipt_number LIKE ?)
+    ORDER BY CAST(
+      CASE 
+        WHEN instr(receipt_number, '-') > 0 
+          THEN substr(receipt_number, instr(receipt_number, '-') + 1)
+        ELSE substr(receipt_number, 2)
+      END AS INTEGER
+    ) DESC
     LIMIT 1
   `;
-  db.get(sql, [`${prefix}%`], (err, row) => {
+  const params = isCash ? ['C-%', 'c%'] : ['B-%', 'b%'];
+  db.get(sql, params, (err, row) => {
     if (err) {
       console.error("🔴 [BACKEND] Error getting next receipt number:", err);
       // fallback to 1 on error
-      return cb(null, `${prefix}1`);
+      return cb(null, `${displayPrefix}1`);
     }
-    if (!row || !row.rn) return cb(null, `${prefix}1`);
-    const lastNum = parseInt(String(row.rn).slice(1), 10);
+    if (!row || !row.rn) return cb(null, `${displayPrefix}1`);
+    // Extract numeric part from either format safely
+    const match = String(row.rn).match(/(\d+)$/);
+    const lastNum = match ? parseInt(match[1], 10) : NaN;
     const next = Number.isFinite(lastNum) ? lastNum + 1 : 1;
-    return cb(null, `${prefix}${next}`);
+    return cb(null, `${displayPrefix}${next}`);
   });
+};
+
+// Infer missing academic_year_id and fee_term from student's record and class fees
+// Strategy:
+// - academic_year_id: use provided; else student's academic_year_id; else null
+// - fee_term: if provided, keep; else compute per-term pending and pick first term with pending > 0.
+//   Term priority defaults to ['term1','term2','books'] but will fall back to the order of keys in class fees JSON.
+const inferFeeContext = (studentId, providedYearId = null, providedTerm = null, cb = () => {}) => {
+  try {
+    if (!studentId) return cb(null, { academic_year_id: providedYearId || null, fee_term: providedTerm || null });
+    const sql = `
+      SELECT s.academic_year_id, c.fees as class_fees
+      FROM students s
+      JOIN classes c ON s.class_id = c.id
+      WHERE s.id = ?
+    `;
+    db.get(sql, [studentId], (err, row) => {
+      if (err || !row) {
+        return cb(null, { academic_year_id: providedYearId || null, fee_term: providedTerm || null });
+      }
+      const effectiveYearId = providedYearId || row.academic_year_id || null;
+      let classFees = {};
+      try { classFees = row.class_fees ? JSON.parse(row.class_fees) : {}; } catch (_) { classFees = {}; }
+
+      if (providedTerm) {
+        return cb(null, { academic_year_id: effectiveYearId, fee_term: providedTerm });
+      }
+
+      // Sum paid by term for student and effective year
+      const sqlPaid = `
+        SELECT fee_term as term, SUM(amount) as paid
+        FROM fees
+        WHERE student_id = ?
+          AND (? IS NULL OR academic_year_id = ?)
+        GROUP BY fee_term
+      `;
+      db.all(sqlPaid, [studentId, effectiveYearId ?? null, effectiveYearId ?? null], (sumErr, rows) => {
+        if (sumErr) {
+          return cb(null, { academic_year_id: effectiveYearId, fee_term: null });
+        }
+        const paidByTerm = {};
+        (rows || []).forEach((r) => {
+          const key = (r.term || '').toString();
+          paidByTerm[key] = Number(r.paid) || 0;
+        });
+
+        const priority = ['term1', 'term2', 'books'];
+        const keys = Object.keys(classFees || {});
+        const ordered = [...new Set([...priority, ...keys])].filter(k => keys.includes(k));
+
+        let chosen = null;
+        for (const term of (ordered.length ? ordered : keys)) {
+          const total = Number(classFees[term]) || 0;
+          const paid = Number(paidByTerm[term] || 0);
+          const pending = Math.max(0, total - paid);
+          if (pending > 0) { chosen = term; break; }
+        }
+        if (!chosen) {
+          // fallback to first available key if all settled
+          chosen = (ordered[0] || keys[0] || null) || null;
+        }
+        return cb(null, { academic_year_id: effectiveYearId, fee_term: chosen });
+      });
+    });
+  } catch (_) {
+    return cb(null, { academic_year_id: providedYearId || null, fee_term: providedTerm || null });
+  }
+};
+
+// Recompute and persist student's fee_breakdown JSON on students table
+// Structure: { term1: { total, paid, pending }, term2: { total, paid, pending }, books: { total, paid, pending }, totals: { total, paid, pending } }
+const recomputeAndStoreStudentFeeBreakdown = (studentId, preferredAcademicYearId = null, cb = () => {}) => {
+  try {
+    if (!studentId) return cb();
+    // 1) Fetch student's class fees JSON and student's academic_year_id
+    const sql = `
+      SELECT s.academic_year_id, s.total_fees, s.pending_fees, c.fees as class_fees
+      FROM students s
+      JOIN classes c ON s.class_id = c.id
+      WHERE s.id = ?
+    `;
+    db.get(sql, [studentId], (err, row) => {
+      if (err || !row) return cb();
+      const effectiveYearId = preferredAcademicYearId || row.academic_year_id || null;
+
+      let classFees = {};
+      try { classFees = row.class_fees ? JSON.parse(row.class_fees) : {}; } catch (_) {}
+
+      // 2) Sum paid amounts grouped by fee_term for this student and year
+      const sqlPaid = `
+        SELECT fee_term as term, SUM(amount) as paid
+        FROM fees
+        WHERE student_id = ?
+          AND (? IS NULL OR academic_year_id = ?)
+        GROUP BY fee_term
+      `;
+      db.all(sqlPaid, [studentId, effectiveYearId ?? null, effectiveYearId ?? null], (sumErr, rows) => {
+        if (sumErr) return cb();
+        const paidByTerm = {};
+        (rows || []).forEach((r) => {
+          const key = (r.term || '').toString();
+          paidByTerm[key] = Number(r.paid) || 0;
+        });
+
+        // 3) Build breakdown for known terms from class fees JSON
+        const keys = Object.keys(classFees || {});
+        const breakdown = {};
+        let totalAll = 0;
+        let paidAll = 0;
+        keys.forEach((term) => {
+          const total = Number(classFees[term]) || 0;
+          const paid = Number(paidByTerm[term] || 0);
+          const pending = Math.max(0, total - paid);
+          breakdown[term] = { total, paid, pending };
+          totalAll += total;
+          paidAll += paid;
+        });
+        breakdown.totals = {
+          total: totalAll,
+          paid: paidAll,
+          pending: Math.max(0, totalAll - paidAll),
+        };
+
+        // 4) Store JSON on students.fee_breakdown (do not change totals/pending here)
+        const updSql = `UPDATE students SET fee_breakdown = ? WHERE id = ?`;
+        db.run(updSql, [JSON.stringify(breakdown), studentId], () => cb());
+      });
+    });
+  } catch (_) {
+    cb();
+  }
 };
 
 // Get per-term totals/paid/pending for a student using class.fees JSON and fees records
@@ -95,6 +238,7 @@ const getFees = (branchId, academicYearId, callback) => {
       f.*,
       s.name as student_name,
       s.roll_number,
+      s.division,
       c.name as class_name,
       b.name as branch_name
     FROM fees f
@@ -130,60 +274,77 @@ const addFees = (feesData, callback) => {
       console.error("🔴 [BACKEND] Failed to generate receipt number:", genErr);
       return callback(genErr, null);
     }
-
-    const query = `
-      INSERT INTO fees (
-        student_id, branch_id, academic_year_id, amount, payment_type, cheque_number,
-        bank_name, payee_name, receipt_number, payment_date, cheque_date,
-        academic_year, month_year, notes, fee_term, fee_charge
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    const params = [
+    // Infer missing academic_year_id and fee_term before insert
+    inferFeeContext(
       feesData.student_id,
-      feesData.branch_id,
       feesData.academic_year_id || null,
-      feesData.amount,
-      normalizedType,
-      feesData.cheque_number || null,
-      feesData.bank_name || null,
-      feesData.payee_name || null,
-      receiptNumber,
-      feesData.payment_date,
-      feesData.cheque_date || null,
-      feesData.academic_year || null,
-      feesData.month_year || null,
-      feesData.notes || null,
       feesData.fee_term || null,
-      feesData.fee_charge || null
-    ];
+      (_e, inferred) => {
+        const academicYearToUse = inferred?.academic_year_id ?? null;
+        const feeTermToUse = inferred?.fee_term ?? null;
 
-    db.run(query, params, function(err) {
-      if (err) {
-        console.error("🔴 [BACKEND] Error adding fees:", err);
-        callback(err, null);
-      } else {
-        console.log("🟢 [BACKEND] Fees added successfully with ID:", this.lastID);
-        // Update student's pending_fees: subtract amount, clamp at 0
-        const updatePendingSql = `
-          UPDATE students
-          SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
-          WHERE id = ?
+        const query = `
+          INSERT INTO fees (
+            student_id, branch_id, academic_year_id, amount, payment_type, cheque_number,
+            bank_name, payee_name, receipt_number, payment_date, cheque_date,
+            academic_year, month_year, notes, fee_term, fee_charge
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        db.run(
-          updatePendingSql,
-          [Number(feesData.amount) || 0, feesData.student_id],
-          function (updErr) {
-            if (updErr) {
-              console.error("🔴 [BACKEND] Error updating student's pending_fees:", updErr);
-              // We still return success for the fee insert, but log the error
-            } else {
-              console.log("🟢 [BACKEND] Student pending_fees updated for student_id:", feesData.student_id);
-            }
-            callback(null, { id: this?.lastID || null, receipt_number: receiptNumber });
+        const params = [
+          feesData.student_id,
+          feesData.branch_id,
+          academicYearToUse,
+          feesData.amount,
+          normalizedType,
+          feesData.cheque_number || null,
+          feesData.bank_name || null,
+          feesData.payee_name || null,
+          receiptNumber,
+          feesData.payment_date,
+          feesData.cheque_date || null,
+          feesData.academic_year || null,
+          feesData.month_year || null,
+          feesData.notes || null,
+          feeTermToUse,
+          feesData.fee_charge || null
+        ];
+
+        db.run(query, params, function(err) {
+          if (err) {
+            console.error("🔴 [BACKEND] Error adding fees:", err);
+            callback(err, null);
+          } else {
+            console.log("🟢 [BACKEND] Fees added successfully with ID:", this.lastID);
+            // Update student's pending_fees: subtract amount, clamp at 0
+            const updatePendingSql = `
+              UPDATE students
+              SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
+              WHERE id = ?
+            `;
+            db.run(
+              updatePendingSql,
+              [Number(feesData.amount) || 0, feesData.student_id],
+              function (updErr) {
+                if (updErr) {
+                  console.error("🔴 [BACKEND] Error updating student's pending_fees:", updErr);
+                  // We still return success for the fee insert, but log the error
+                } else {
+                  console.log("🟢 [BACKEND] Student pending_fees updated for student_id:", feesData.student_id);
+                }
+                // Recompute and persist fee_breakdown JSON for this student
+                recomputeAndStoreStudentFeeBreakdown(
+                  feesData.student_id,
+                  academicYearToUse,
+                  () => {
+                    callback(null, { id: this?.lastID || null, receipt_number: receiptNumber });
+                  }
+                );
+              }
+            );
           }
-        );
+        });
       }
-    });
+    );
   });
 };
 
@@ -209,85 +370,105 @@ const updateFees = (id, feesData, callback) => {
     const prevStudentId = prev.student_id;
     const targetStudentId = feesData.student_id || prevStudentId;
 
-    const query = `
-      UPDATE fees SET 
-        student_id = ?, amount = ?, payment_type = ?, cheque_number = ?, 
-        bank_name = ?, payee_name = ?, payment_date = ?, cheque_date = ?,
-        academic_year = ?, month_year = ?, notes = ?, academic_year_id = ?,
-        fee_term = ?, fee_charge = ?
-      WHERE id = ?
-    `;
-    const params = [
+    // Infer missing academic_year_id / fee_term before update
+    inferFeeContext(
       targetStudentId,
-      newAmount,
-      normalizedType,
-      feesData.cheque_number || null,
-      feesData.bank_name || null,
-      feesData.payee_name || null,
-      feesData.payment_date,
-      feesData.cheque_date || null,
-      feesData.academic_year || null,
-      feesData.month_year || null,
-      feesData.notes || null,
       feesData.academic_year_id || null,
       feesData.fee_term || null,
-      feesData.fee_charge || null,
-      id
-    ];
+      (_e, inferred) => {
+        const academicYearToUse = inferred?.academic_year_id ?? null;
+        const feeTermToUse = inferred?.fee_term ?? null;
 
-    db.run(query, params, function (updErr) {
-      if (updErr) {
-        console.error("🔴 [BACKEND] Error updating fees:", updErr);
-        return callback(updErr, null);
-      }
-      console.log("🟢 [BACKEND] Fees updated successfully, adjusting student's pending_fees");
-
-      if (targetStudentId !== prevStudentId) {
-        // Case: fee moved to different student
-        // 1) Add back previous amount to previous student's pending_fees
-        const addBackSql = `
-          UPDATE students
-          SET pending_fees = COALESCE(pending_fees, COALESCE(total_fees, 0)) + ?
+        const query = `
+          UPDATE fees SET 
+            student_id = ?, amount = ?, payment_type = ?, cheque_number = ?, 
+            bank_name = ?, payee_name = ?, payment_date = ?, cheque_date = ?,
+            academic_year = ?, month_year = ?, notes = ?, academic_year_id = ?,
+            fee_term = ?, fee_charge = ?
           WHERE id = ?
         `;
-        db.run(addBackSql, [prevAmount, prevStudentId], function (adjErr1) {
-          if (adjErr1) {
-            console.error("🔴 [BACKEND] Error restoring pending_fees to previous student:", adjErr1);
-            // continue to adjust new student regardless
+        const params = [
+          targetStudentId,
+          newAmount,
+          normalizedType,
+          feesData.cheque_number || null,
+          feesData.bank_name || null,
+          feesData.payee_name || null,
+          feesData.payment_date,
+          feesData.cheque_date || null,
+          feesData.academic_year || null,
+          feesData.month_year || null,
+          feesData.notes || null,
+          academicYearToUse,
+          feeTermToUse,
+          feesData.fee_charge || null,
+          id
+        ];
+        db.run(query, params, function (updErr) {
+          if (updErr) {
+            console.error("🔴 [BACKEND] Error updating fees:", updErr);
+            return callback(updErr, null);
           }
-          // 2) Subtract new amount from new student's pending_fees
-          const subtractSql = `
-            UPDATE students
-            SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
-            WHERE id = ?
-          `;
-          db.run(subtractSql, [newAmount, targetStudentId], function (adjErr2) {
-            if (adjErr2) {
-              console.error("🔴 [BACKEND] Error reducing pending_fees for new student:", adjErr2);
-              return callback(null, { changes: 1, pending_adjust_error: true });
-            }
-            console.log("🟢 [BACKEND] Pending fees adjusted for student change. prev:", prevStudentId, "new:", targetStudentId);
-            return callback(null, { changes: 1 });
-          });
-        });
-      } else {
-        // Same student: subtract delta (negative delta increases pending)
-        const adjSql = `
-          UPDATE students
-          SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
-          WHERE id = ?
-        `;
-        db.run(adjSql, [delta, targetStudentId], function (adjErr) {
-          if (adjErr) {
-            console.error("🔴 [BACKEND] Error adjusting student's pending_fees on update:", adjErr);
-            // Still return success for the fee update
-            return callback(null, { changes: 1, pending_adjust_error: true });
+          console.log("🟢 [BACKEND] Fees updated successfully, adjusting student's pending_fees");
+
+          if (targetStudentId !== prevStudentId) {
+            // Case: fee moved to different student
+            // 1) Add back previous amount to previous student's pending_fees
+            const addBackSql = `
+              UPDATE students
+              SET pending_fees = COALESCE(pending_fees, COALESCE(total_fees, 0)) + ?
+              WHERE id = ?
+            `;
+            db.run(addBackSql, [prevAmount, prevStudentId], function (adjErr1) {
+              if (adjErr1) {
+                console.error("🔴 [BACKEND] Error restoring pending_fees to previous student:", adjErr1);
+                // continue to adjust new student regardless
+              }
+              // 2) Subtract new amount from new student's pending_fees
+              const subtractSql = `
+                UPDATE students
+                SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
+                WHERE id = ?
+              `;
+              db.run(subtractSql, [newAmount, targetStudentId], function (adjErr2) {
+                if (adjErr2) {
+                  console.error("🔴 [BACKEND] Error reducing pending_fees for new student:", adjErr2);
+                  return callback(null, { changes: 1, pending_adjust_error: true });
+                }
+                console.log("🟢 [BACKEND] Pending fees adjusted for student change. prev:", prevStudentId, "new:", targetStudentId);
+                // Recompute breakdown for both students
+                recomputeAndStoreStudentFeeBreakdown(prevStudentId, academicYearToUse, () => {
+                  recomputeAndStoreStudentFeeBreakdown(targetStudentId, academicYearToUse, () => {
+                    return callback(null, { changes: 1 });
+                  });
+                });
+              });
+            });
+          } else {
+            // Same student: subtract delta (negative delta increases pending)
+            const adjSql = `
+              UPDATE students
+              SET pending_fees = MAX(0, COALESCE(pending_fees, COALESCE(total_fees, 0)) - ?)
+              WHERE id = ?
+            `;
+            db.run(adjSql, [delta, targetStudentId], function (adjErr) {
+              if (adjErr) {
+                console.error("🔴 [BACKEND] Error adjusting student's pending_fees on update:", adjErr);
+                // Still return success for the fee update
+                // Still recompute breakdown even if pending adjust failed
+                recomputeAndStoreStudentFeeBreakdown(targetStudentId, academicYearToUse, () => {
+                  return callback(null, { changes: 1, pending_adjust_error: true });
+                });
+              }
+              console.log("🟢 [BACKEND] Student pending_fees adjusted for student_id:", targetStudentId);
+              recomputeAndStoreStudentFeeBreakdown(targetStudentId, academicYearToUse, () => {
+                return callback(null, { changes: 1 });
+              });
+            });
           }
-          console.log("🟢 [BACKEND] Student pending_fees adjusted for student_id:", targetStudentId);
-          return callback(null, { changes: 1 });
         });
       }
-    });
+    );
   });
 };
 
@@ -324,10 +505,15 @@ const deleteFees = (id, callback) => {
         if (adjErr) {
           console.error("🔴 [BACKEND] Error adjusting student's pending_fees on delete:", adjErr);
           // Still return success for the fee deletion
-          return callback(null, { changes: 1, pending_adjust_error: true });
+          // Still attempt to recompute fee_breakdown
+          recomputeAndStoreStudentFeeBreakdown(studentId, null, () => {
+            return callback(null, { changes: 1, pending_adjust_error: true });
+          });
         }
         console.log("🟢 [BACKEND] Student pending_fees increased for student_id:", studentId);
-        return callback(null, { changes: 1 });
+        recomputeAndStoreStudentFeeBreakdown(studentId, null, () => {
+          return callback(null, { changes: 1 });
+        });
       });
     });
   });
@@ -370,6 +556,7 @@ const getFeesReceipt = (receiptNumber, callback) => {
       f.*,
       s.name as student_name,
       s.roll_number,
+      s.division,
       c.name as class_name,
       b.name as branch_name
     FROM fees f

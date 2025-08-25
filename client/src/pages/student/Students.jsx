@@ -10,6 +10,8 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Chip,
+  Divider,
 } from "@mui/material";
 import AddStudentModal from "./AddStudentModal";
 import EditStudentModal from "./EditStudentModal";
@@ -43,6 +45,7 @@ const Students = () => {
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [shifts, setShifts] = useState([]);
+  const [classEntries, setClassEntries] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -102,9 +105,63 @@ const Students = () => {
           shift_display = s ? s.shift_name || s.name || "" : "";
         }
       }
-      return { ...item, srNo: index + 1, shift_display };
+      const class_display = item.class_name
+        ? `${item.class_name}${item.division ? ` (${item.division})` : ""}`
+        : item.class_name || "";
+      return { ...item, srNo: index + 1, shift_display, class_display };
     });
   }, [students, reportClassId, reportShiftId, reportGender, shiftsById]);
+
+  // Labels for report header summary
+  const reportClassLabel = useMemo(() => {
+    if (!reportClassId) return "All";
+    const c = (classes || []).find(
+      (x) => String(x.id) === String(reportClassId)
+    );
+    return c?.name || String(reportClassId);
+  }, [reportClassId, classes]);
+
+  const reportShiftLabel = useMemo(() => {
+    if (!reportShiftId) return "All";
+    const s = (shifts || []).find(
+      (x) => String(x.id) === String(reportShiftId)
+    );
+    return s?.shift_name || s?.name || String(reportShiftId);
+  }, [reportShiftId, shifts]);
+
+  const reportGenderLabel = useMemo(() => {
+    if (!reportGender) return "All";
+    const cap =
+      String(reportGender).charAt(0).toUpperCase() +
+      String(reportGender).slice(1);
+    return cap;
+  }, [reportGender]);
+
+  const yearLabel = useMemo(() => {
+    const y = selectedYear || {};
+    return y.name || y.year_name || y.label || y.title || y.id || "-";
+  }, [selectedYear]);
+
+  const branchLabel = useMemo(
+    () => selectedBranch?.name || "-",
+    [selectedBranch]
+  );
+
+  const reportCount = reportFiltered.length;
+  const reportGeneratedAt = useMemo(() => {
+    try {
+      return new Date().toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      console.error("Failed to format date:", e);
+      return new Date().toISOString();
+    }
+  }, []);
 
   // Report modal columns: only 5 fields
   const reportColumns = useMemo(
@@ -135,7 +192,7 @@ const Students = () => {
         minWidth: 140,
       },
       {
-        field: "class_name",
+        field: "class_display",
         headerName: "Class",
         flex: 0.8,
         minWidth: 120,
@@ -147,47 +204,53 @@ const Students = () => {
         minWidth: 120,
       },
     ],
-    [shiftsById]
+    []
   );
 
   // Build report HTML string (used by Print and Save)
-  const buildReportHtml = useCallback((rows) => {
-    const columns = [
-      { key: "srNo", title: "Sr No" },
-      { key: "name", title: "Student Name" },
-      { key: "parents_contact1", title: "Parent Contact 1" },
-      { key: "parents_contact2", title: "Parent Contact 2" },
-      { key: "class_name", title: "Class" },
-      { key: "shift_display", title: "Shift" },
-    ];
+  const buildReportHtml = useCallback(
+    (rows) => {
+      const columns = [
+        { key: "srNo", title: "Sr No" },
+        { key: "name", title: "Student Name" },
+        { key: "parents_contact1", title: "Parent Contact 1" },
+        { key: "parents_contact2", title: "Parent Contact 2" },
+        { key: "class_name", title: "Class" },
+        { key: "shift_display", title: "Shift" },
+      ];
 
-    const htmlRows = (rows || [])
-      .map((r) => {
-        const vals = [
-          r.srNo || "",
-          r.name || "",
-          r.parents_contact1 || "",
-          r.parents_contact2 || "",
-          r.class_name || "",
-          r.shift_display || "",
-        ].map((v) =>
-          String(v)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-        );
-        return `<tr>${vals.map((v) => `<td>${v}</td>`).join("")}</tr>`;
-      })
-      .join("");
+      const htmlRows = (rows || [])
+        .map((r) => {
+          const vals = [
+            r.srNo || "",
+            r.name || "",
+            r.parents_contact1 || "",
+            r.parents_contact2 || "",
+            r.class_display || "",
+            r.shift_display || "",
+          ].map((v) =>
+            String(v)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+          );
+          return `<tr>${vals.map((v) => `<td>${v}</td>`).join("")}</tr>`;
+        })
+        .join("");
 
-    const html = `<!doctype html>
+      const html = `<!doctype html>
       <html>
       <head>
         <meta charset="utf-8" />
         <title>Student Report</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 16px; }
-          h2 { margin: 0 0 12px 0; }
+          .header { margin-bottom: 12px; text-align: center; }
+          .branch { margin: 0; font-size: 20px; font-weight: 700; }
+          .subject { margin: 2px 0 0 0; font-size: 13px; color: #333; }
+          .meta { margin: 4px 0 8px 0; font-size: 12px; color: #555; }
+          .chips { margin: 6px 0 12px 0; text-align: center; }
+          .chip { display: inline-block; border: 1px solid #bbb; border-radius: 12px; padding: 2px 8px; font-size: 11px; margin-right: 6px; margin-bottom: 6px; }
           table { border-collapse: collapse; width: 100%; }
           th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
           th { background: #f0f0f0; text-align: left; }
@@ -199,7 +262,18 @@ const Students = () => {
         </style>
       </head>
       <body>
-        <h2>Student Report</h2>
+        <div class="header">
+          <div class="branch">${branchLabel}</div>
+          <div class="subject">Subject: Student Report</div>
+          <div class="meta">${reportGeneratedAt} • Total: ${reportCount}</div>
+          <div class="chips">
+            <span class="chip">Branch: ${branchLabel}</span>
+            <span class="chip">Year: ${yearLabel}</span>
+            <span class="chip">Class: ${reportClassLabel}</span>
+            <span class="chip">Shift: ${reportShiftLabel}</span>
+            <span class="chip">Gender: ${reportGenderLabel}</span>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>${columns.map((c) => `<th>${c.title}</th>`).join("")}</tr>
@@ -210,8 +284,18 @@ const Students = () => {
         </table>
       </body>
       </html>`;
-    return html;
-  }, []);
+      return html;
+    },
+    [
+      branchLabel,
+      yearLabel,
+      reportClassLabel,
+      reportShiftLabel,
+      reportGenderLabel,
+      reportGeneratedAt,
+      reportCount,
+    ]
+  );
 
   // Print: open print dialog with all filtered rows
   const printReport = useCallback(() => {
@@ -228,43 +312,6 @@ const Students = () => {
       w.document.close();
     }
   }, [reportFiltered, buildReportHtml]);
-
-  // Save: show native Save dialog and write HTML file
-  const saveReport = useCallback(async () => {
-    try {
-      const html = buildReportHtml(reportFiltered);
-      const ts = new Date().toISOString().slice(0, 10);
-      const defaultPathPdf = `student-report-${ts}.pdf`;
-      // Prefer native PDF save via Electron
-      const res = await window.electronAPI?.saveStudentReportPdf?.(
-        html,
-        defaultPathPdf
-      );
-      if (res && res.success) {
-        console.log("Report saved to", res.path);
-        return;
-      }
-      // Fallbacks:
-      // 1) If running in browser: open print dialog so user can choose "Save as PDF"
-      if (!window.electronAPI?.saveStudentReportPdf) {
-        printReport();
-        return;
-      }
-      // 2) As a last resort, download HTML (ensures user still gets a file)
-      const defaultPathHtml = `student-report-${ts}.html`;
-      const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = defaultPathHtml;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("Failed to save report:", e);
-    }
-  }, [reportFiltered, buildReportHtml, printReport]);
 
   const columns = useMemo(
     () => [
@@ -458,20 +505,6 @@ const Students = () => {
         ),
       },
       {
-        field: "admission_end_date",
-        headerName: "Admission End Date",
-        flex: 0.8,
-        minWidth: 160,
-        renderCell: (params) => (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-            <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
-            </Tooltip>
-          </Box>
-        ),
-      },
-      {
         field: "address",
         headerName: "Address",
         flex: 1.2,
@@ -582,17 +615,37 @@ const Students = () => {
     }
   }, []);
 
+  const fetchClassEntries = useCallback(async (branch_id) => {
+    try {
+      const data = await window.electronAPI.listClassEntriesByBranch(branch_id);
+      setClassEntries(data || []);
+    } catch (err) {
+      setError("Failed to fetch class entries", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStudents();
   }, [fetchStudents, selectedBranch, selectedYear]);
 
+  // Refresh students when fees are added/edited/deleted elsewhere
+  useEffect(() => {
+    const onFeesUpdated = () => {
+      fetchStudents();
+    };
+    window.addEventListener("fees-updated", onFeesUpdated);
+    return () => window.removeEventListener("fees-updated", onFeesUpdated);
+  }, [fetchStudents]);
+
   useEffect(() => {
     if (selectedBranch?.id) {
       fetchClasses(selectedBranch.id);
+      fetchClassEntries(selectedBranch.id);
     } else {
       setClasses([]);
+      setClassEntries([]);
     }
-  }, [fetchClasses, selectedBranch]);
+  }, [fetchClasses, fetchClassEntries, selectedBranch]);
 
   useEffect(() => {
     fetchShifts();
@@ -717,11 +770,10 @@ const Students = () => {
     >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Students</h1>
-        <div className="flex gap-4">
+        <Stack direction="row" spacing={2} alignItems="center">
           <Button
             variant="outlined"
             color="secondary"
-            sx={{ mr: 2 }}
             onClick={() => setReportOpen(true)}
             disabled={loading}
           >
@@ -730,13 +782,12 @@ const Students = () => {
           <Button
             variant="contained"
             color="primary"
-            sx={{ ml: 2 }}
             onClick={() => setShowAddModal(true)}
             disabled={loading}
           >
             + Add Student
           </Button>
-        </div>
+        </Stack>
       </div>
       <ViewStudentModal
         open={showViewModal}
@@ -780,8 +831,7 @@ const Students = () => {
       <AddStudentModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        classes={classes}
-        shifts={shifts}
+        classEntries={classEntries}
         onSuccess={handleAddSuccess}
         setError={setError}
         setLoading={setLoading}
@@ -790,8 +840,7 @@ const Students = () => {
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
         student={editingStudent}
-        classes={classes}
-        shifts={shifts}
+        classEntries={classEntries}
         onSuccess={handleEditSuccess}
         setError={setError}
         setLoading={setLoading}
@@ -812,8 +861,40 @@ const Students = () => {
         fullWidth
         maxWidth="lg"
       >
-        <DialogTitle>Student Report</DialogTitle>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+            spacing={2}
+          >
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <SchoolIcon sx={{ color: teal[700] }} />
+              <Box>
+                <Typography
+                  variant="h6"
+                  sx={{ fontWeight: 700, lineHeight: 1 }}
+                >
+                  Student Report
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {reportGeneratedAt} • Total: {reportCount}
+                </Typography>
+              </Box>
+            </Stack>
+          </Stack>
+        </DialogTitle>
         <DialogContent dividers>
+          {/* Filter chips summary */}
+          <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
+            <Chip size="small" label={`Branch: ${branchLabel}`} />
+            <Chip size="small" label={`Year: ${yearLabel}`} />
+            <Chip size="small" label={`Class: ${reportClassLabel}`} />
+            <Chip size="small" label={`Shift: ${reportShiftLabel}`} />
+            <Chip size="small" label={`Gender: ${reportGenderLabel}`} />
+          </Stack>
+          <Divider sx={{ mb: 2 }} />
+
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={2}
@@ -888,11 +969,16 @@ const Students = () => {
             </Button>
           </Stack>
 
+          {/* Live count hint above table */}
+          <Typography variant="caption" sx={{ mb: 1, color: "text.secondary" }}>
+            Showing {reportCount} result(s)
+          </Typography>
           <div style={{ width: "100%", height: "60vh" }}>
             <TableWrapper
               columns={reportColumns}
               rows={reportFiltered}
-              pageSize={10}
+              pagination={false}
+              hidePageSize={true}
               enableExport={false}
               initialState={{
                 sorting: { sortModel: [{ field: "name", sort: "asc" }] },
@@ -903,9 +989,6 @@ const Students = () => {
         <DialogActions>
           <Button variant="contained" color="primary" onClick={printReport}>
             Print
-          </Button>
-          <Button variant="outlined" onClick={saveReport}>
-            Save
           </Button>
           <Button onClick={() => setReportOpen(false)}>Close</Button>
         </DialogActions>

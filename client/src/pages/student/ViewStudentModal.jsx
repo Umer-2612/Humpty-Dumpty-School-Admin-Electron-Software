@@ -195,7 +195,11 @@ export default function ViewStudentModal({
               {s.name || "-"}
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="caption">{s.class_name || "-"}</Typography>
+              <Typography variant="caption">
+                {s.class_name
+                  ? `${s.class_name}${s.division ? ` (${s.division})` : ""}`
+                  : "-"}
+              </Typography>
               <Chip
                 size="small"
                 variant="outlined"
@@ -322,7 +326,14 @@ export default function ViewStudentModal({
             <Stack spacing={1.5}>
               <Stack direction="row" spacing={2}>
                 <Box sx={{ flex: 1 }}>
-                  <InfoRow label="Class" value={s.class_name} />
+                  <InfoRow
+                    label="Class"
+                    value={
+                      s.class_name
+                        ? `${s.class_name}${s.division ? ` (${s.division})` : ""}`
+                        : "-"
+                    }
+                  />
                 </Box>
                 <Box sx={{ flex: 1 }}>
                   <InfoRow label="Roll No" value={s.roll_number} />

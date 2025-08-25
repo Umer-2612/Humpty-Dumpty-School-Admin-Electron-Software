@@ -14,8 +14,7 @@ import { useYear } from "../../context/YearProvider.jsx";
 const AddStudentModal = ({
   open,
   onClose,
-  classes,
-  shifts,
+  classEntries,
   onSuccess,
   setError,
   setLoading,
@@ -63,9 +62,8 @@ const AddStudentModal = ({
         newErrors.class_id = "Class is required";
       }
 
-      if (!form.shift_id) {
-        newErrors.shift_id = "Shift is required";
-      }
+      // shift_id is set via class entry selection; if missing, show error
+      if (!form.shift_id) newErrors.shift_id = "Shift is required";
     }
 
     // Step 1 validation
@@ -191,9 +189,8 @@ const AddStudentModal = ({
             <StudentForm
               form={form}
               setForm={setForm}
-              classes={classes}
+              classEntries={classEntries}
               step={step}
-              shifts={shifts}
               errors={errors}
             />
           </Box>
@@ -232,3 +229,4 @@ const AddStudentModal = ({
 };
 
 export default AddStudentModal;
+

@@ -4,255 +4,133 @@ import TableWrapper from "../../component/TableWrapper";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import Tooltip from "@mui/material/Tooltip";
 import { teal } from "@mui/material/colors";
 import SchoolIcon from "@mui/icons-material/School";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
-import AddClassModal from "./AddClassModal";
-import EditClassModal from "./EditClassModal";
-import DeleteClassModal from "./DeleteClassModal";
-import AddShiftModal from "./AddShiftModal";
-import EditShiftModal from "./EditShiftModal";
-import DeleteShiftModal from "./DeleteShiftModal";
 import { useBranch } from "../../context/useBranch";
+// Removed inline Add modal dependencies after modularization
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import EditClassEntryModal from "./EditClassEntryModal";
+import DeleteClassEntryModal from "./DeleteClassEntryModal";
+import AddClassEntryModal from "./AddClassEntryModal";
 
 const SETTINGS_KEY = "academicSettingsTableSettings";
 
 const AcademicSettings = () => {
   const { selected: selectedBranch } = useBranch();
-  const [classes, setClasses] = useState([]);
-  const [shifts, setShifts] = useState([]);
+  const [classEntries, setClassEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  console.log({ shifts });
+  // Local UI state for modals/actions
+  const [showAddEntryModal, setShowAddEntryModal] = useState(false);
+  const [showEditEntryModal, setShowEditEntryModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [deletingEntry, setDeletingEntry] = useState(null);
 
-  // Add serial numbers to classes data
-  const classesWithSrNo = classes.map((item, index) => ({
+  // Inline Add form state removed; handled inside AddClassEntryModal
+
+  // Unified Academic Settings (class entries)
+
+  // Unified class entries (new)
+  const entriesWithSrNo = classEntries.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
+  // Columns are defined in useMemo below to keep dependencies stable
 
-  const classColumns = [
-    {
-      field: "srNo",
-      headerName: "Sr No",
-      width: 70,
-      headerAlign: "center",
-      align: "center",
-      type: "number",
-    },
-    {
-      field: "name",
-      headerName: "Class Name",
-      flex: 1,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <SchoolIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={params.value}>
-            <span>{params.value}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "total_fees",
-      headerName: "Total Fees",
-      width: 150,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={Number(params.value).toLocaleString()}>
-            <span>{Number(params.value).toLocaleString()}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "term1_fee",
-      headerName: "Term 1",
-      width: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={Number(params.value || 0).toLocaleString()}>
-            <span>{Number(params.value || 0).toLocaleString()}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "term2_fee",
-      headerName: "Term 2",
-      width: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={Number(params.value || 0).toLocaleString()}>
-            <span>{Number(params.value || 0).toLocaleString()}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "books_charge",
-      headerName: "Books",
-      width: 120,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={Number(params.value || 0).toLocaleString()}>
-            <span>{Number(params.value || 0).toLocaleString()}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "num_divisions",
-      headerName: "Divisions",
-      width: 120,
-      headerAlign: "center",
-      align: "center",
-      type: "number",
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <Tooltip title={Number(params.value || 0).toLocaleString()}>
-            <span>{Number(params.value || 0).toLocaleString()}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 180,
-      sortable: false,
-      renderCell: (params) => (
-        <div>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            onClick={() => handleEditClassClick(params.row)}
-            sx={{ mr: 1 }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            size="small"
-            onClick={() => handleDeleteClassClick(params.row)}
-          >
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  // Handlers stabilized with useCallback (used by renderers in columns)
+  const handleEditEntryClick = useCallback((entry) => {
+    setEditingEntry(entry);
+    setShowEditEntryModal(true);
+    setError("");
+    setSuccess("");
+  }, []);
 
-  // Parse "h:mm AM/PM" to minutes since midnight for sorting. Unknown -> very large number (goes to bottom).
-  const parseTimeToMinutes = (t) => {
-    if (!t || typeof t !== "string") return Number.MAX_SAFE_INTEGER;
-    const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-    if (!m) return Number.MAX_SAFE_INTEGER;
-    const hh = parseInt(m[1], 10);
-    const mm = parseInt(m[2], 10);
-    const ap = m[3].toUpperCase();
-    let h = hh % 12;
-    if (ap === "PM") h += 12;
-    return h * 60 + mm;
-  };
+  const handleDeleteEntryClick = useCallback((entry) => {
+    setDeletingEntry(entry);
+    // Delete modal opens when deletingEntry is set
+    setError("");
+    setSuccess("");
+  }, []);
 
-  // Sort shifts by start_time ascending by default
-  const sortedShifts = useMemo(() => {
-    return [...(shifts || [])].sort((a, b) => {
-      const aMin = parseTimeToMinutes(a?.start_time);
-      const bMin = parseTimeToMinutes(b?.start_time);
-      return aMin - bMin;
+  // Base columns memoized so identity is stable across renders
+  const baseColumns = useMemo(
+    () => [
+      {
+        field: "srNo",
+        headerName: "Sr No",
+        width: 70,
+        headerAlign: "center",
+        align: "center",
+        type: "number",
+      },
+      { field: "class_name", headerName: "Class", flex: 1, minWidth: 160 },
+      { field: "shift_name", headerName: "Shift", flex: 1, minWidth: 140 },
+      { field: "start_time", headerName: "Start", width: 110 },
+      { field: "end_time", headerName: "End", width: 110 },
+      {
+        field: "division_count",
+        headerName: "Divisions",
+        width: 120,
+        headerAlign: "center",
+        align: "center",
+        type: "number",
+      },
+      { field: "term1_fee", headerName: "Term 1", width: 120 },
+      { field: "term2_fee", headerName: "Term 2", width: 120 },
+      { field: "books_charge", headerName: "Books", width: 120 },
+      { field: "total_fees", headerName: "Total Fees", width: 140 },
+      {
+        field: "actions",
+        headerName: "Actions",
+        width: 180,
+        sortable: false,
+        renderCell: (params) => (
+          <div>
+            <Button
+              variant="contained"
+              color="primary"
+              size="small"
+              onClick={() => handleEditEntryClick(params.row)}
+              sx={{ mr: 1 }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              onClick={() => handleDeleteEntryClick(params.row)}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [handleEditEntryClick, handleDeleteEntryClick]
+  );
+
+  // Compute default width from header text length (approx 9px per char + padding)
+  const computeHeaderWidth = useCallback((header) => {
+    const len = (header || "").length;
+    const px = Math.round(len * 9 + 24); // character width + padding
+    return Math.max(70, Math.min(260, px));
+  }, []);
+
+  // Apply auto width for columns without explicit width or flex
+  const columnsWithAutoWidth = useMemo(() => {
+    return baseColumns.map((col) => {
+      if (col.flex || col.width) return col;
+      return { ...col, width: computeHeaderWidth(col.headerName) };
     });
-  }, [shifts]);
+  }, [baseColumns, computeHeaderWidth]);
 
-  // Add serial numbers to sorted shifts data
-  const shiftsWithSrNo = sortedShifts.map((item, index) => ({
-    ...item,
-    srNo: index + 1,
-  }));
-
-  const shiftColumns = [
-    {
-      field: "srNo",
-      headerName: "Sr No",
-      width: 70,
-      headerAlign: "center",
-      align: "center",
-      type: "number",
-    },
-    {
-      field: "name",
-      headerName: "Shift Name",
-      flex: 1,
-      renderCell: (params) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <AccessTimeIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={params.value}>
-            <span>{params.value}</span>
-          </Tooltip>
-        </Box>
-      ),
-    },
-    {
-      field: "start_time",
-      headerName: "Start Time",
-      width: 120,
-      renderCell: (params) => (
-        <Tooltip title={params.row?.start_time || "-"}>
-          <span>{params.row?.start_time || "-"}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "end_time",
-      headerName: "End Time",
-      width: 120,
-      renderCell: (params) => (
-        <Tooltip title={params.row?.end_time || "-"}>
-          <span>{params.row?.end_time || "-"}</span>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 180,
-      sortable: false,
-      renderCell: (params) => (
-        <div>
-          <Button
-            variant="contained"
-            color="primary"
-            size="small"
-            onClick={() => handleEditShiftClick(params.row)}
-            sx={{ mr: 1 }}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            size="small"
-            onClick={() => handleDeleteShiftClick(params.row)}
-          >
-            Delete
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  // Handlers defined above
 
   useEffect(() => {
     let mounted = true;
@@ -274,126 +152,26 @@ const AcademicSettings = () => {
     });
   }, []);
 
-  const fetchClasses = useCallback(async () => {
+  const fetchClassEntries = useCallback(async () => {
     if (!selectedBranch?.id) return;
     setLoading(true);
     try {
-      const data = await window.electronAPI.getClassesByBranch(
+      const data = await window.electronAPI.listClassEntriesByBranch(
         selectedBranch.id
       );
-      setClasses(data);
+      setClassEntries(data || []);
     } catch (err) {
-      setError("Failed to fetch classes", err);
+      setError("Failed to fetch class entries", err);
     } finally {
       setLoading(false);
     }
   }, [selectedBranch]);
 
-  const fetchShifts = async () => {
-    setLoading(true);
-    try {
-      const data = await window.electronAPI.getClassShifts();
-      console.log({ data });
-      setShifts(data);
-    } catch (err) {
-      setError("Failed to fetch shifts", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Add behavior handled by AddClassEntryModal
 
   useEffect(() => {
-    fetchClasses();
-  }, [fetchClasses, selectedBranch]);
-
-  useEffect(() => {
-    fetchShifts();
-  }, []);
-
-  const handleEditClassClick = (cls) => {
-    setEditingClass(cls);
-    setShowEditClassModal(true);
-    setError("");
-    setSuccess("");
-  };
-
-  const handleDeleteClassClick = (cls) => {
-    setDeletingClass(cls);
-    setShowDeleteClassModal(true);
-    setError("");
-    setSuccess("");
-  };
-
-  const handleEditShiftClick = (shift) => {
-    setEditingShift(shift);
-    setShowEditShiftModal(true);
-    setError("");
-    setSuccess("");
-  };
-
-  const handleDeleteShiftClick = (shift) => {
-    setDeletingShift(shift);
-    setShowDeleteShiftModal(true);
-    setError("");
-    setSuccess("");
-  };
-
-  const handleAddClassSuccess = () => {
-    setShowClassModal(false);
-    setSuccess("Class added successfully!");
-    fetchClasses();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const handleEditClassSuccess = () => {
-    setShowEditClassModal(false);
-    setEditingClass(null);
-    setSuccess("Class updated successfully!");
-    fetchClasses();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const handleDeleteClassSuccess = () => {
-    setShowDeleteClassModal(false);
-    setDeletingClass(null);
-    setSuccess("Class deleted successfully!");
-    fetchClasses();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const handleAddShiftSuccess = () => {
-    setShowShiftModal(false);
-    setSuccess("Shift added successfully!");
-    fetchShifts();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const handleEditShiftSuccess = () => {
-    setShowEditShiftModal(false);
-    setEditingShift(null);
-    setSuccess("Shift updated successfully!");
-    fetchShifts();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const handleDeleteShiftSuccess = () => {
-    setShowDeleteShiftModal(false);
-    setDeletingShift(null);
-    setSuccess("Shift deleted successfully!");
-    fetchShifts();
-    setTimeout(() => setSuccess(""), 2000);
-  };
-
-  const [showClassModal, setShowClassModal] = useState(false);
-  const [showEditClassModal, setShowEditClassModal] = useState(false);
-  const [showDeleteClassModal, setShowDeleteClassModal] = useState(false);
-  const [editingClass, setEditingClass] = useState(null);
-  const [deletingClass, setDeletingClass] = useState(null);
-  const [showShiftModal, setShowShiftModal] = useState(false);
-  const [showEditShiftModal, setShowEditShiftModal] = useState(false);
-  const [showDeleteShiftModal, setShowDeleteShiftModal] = useState(false);
-  const [editingShift, setEditingShift] = useState(null);
-  const [deletingShift, setDeletingShift] = useState(null);
+    fetchClassEntries();
+  }, [fetchClassEntries, selectedBranch]);
 
   return (
     <div
@@ -405,13 +183,7 @@ const AcademicSettings = () => {
         minHeight: 0,
       }}
     >
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Academic Settings</h1>
-      </div>
-      {error && <div className="text-red-600 mb-2 font-medium">{error}</div>}
-      {success && (
-        <div className="text-green-600 mb-2 font-medium">{success}</div>
-      )}
+      {/* Unified Class Entries */}
       <Paper
         elevation={2}
         sx={{
@@ -426,7 +198,7 @@ const AcademicSettings = () => {
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Classes for {selectedBranch?.name || "Select Branch"}
+            Classes — {selectedBranch?.name || "Select Branch"}
           </Typography>
         </Box>
         <Box
@@ -438,65 +210,15 @@ const AcademicSettings = () => {
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            Manage classes for the selected branch
+            Manage classes for this branch
           </Typography>
           <Button
             variant="contained"
             color="primary"
-            onClick={() => setShowClassModal(true)}
+            onClick={() => setShowAddEntryModal(true)}
             disabled={loading || !selectedBranch}
           >
             + Add Class
-          </Button>
-        </Box>
-        <div
-          style={{ width: "100%", height: "100%", minHeight: 0, marginTop: 24 }}
-        >
-          {settingsLoaded && (
-            <TableWrapper
-              columns={classColumns}
-              rows={classesWithSrNo}
-              pageSize={5}
-              columnVisibilityModel={columnVisibilityModel}
-              onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
-            />
-          )}
-        </div>
-      </Paper>
-      <Paper
-        elevation={2}
-        sx={{
-          p: 3,
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-          <AccessTimeIcon sx={{ mr: 1, color: teal[700], fontSize: 24 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Class Shifts
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            mb: 2,
-          }}
-        >
-          <Typography variant="body2" color="text.secondary">
-            Manage shifts that apply to all branches
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => setShowShiftModal(true)}
-            disabled={loading}
-          >
-            + Add Shift
           </Button>
         </Box>
         <div
@@ -504,62 +226,100 @@ const AcademicSettings = () => {
         >
           {settingsLoaded && (
             <TableWrapper
-              columns={shiftColumns}
-              rows={shiftsWithSrNo}
+              columns={columnsWithAutoWidth}
+              rows={entriesWithSrNo}
               pageSize={5}
+              hidePageSize
               columnVisibilityModel={columnVisibilityModel}
               onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
             />
           )}
         </div>
       </Paper>
-      <AddClassModal
-        open={showClassModal}
-        onClose={() => setShowClassModal(false)}
+      {/* Legacy classes/shifts UI removed */}
+
+      {/* Add Class Modal */}
+      <AddClassEntryModal
+        open={showAddEntryModal}
+        onClose={() => setShowAddEntryModal(false)}
         branchId={selectedBranch?.id}
-        onSuccess={handleAddClassSuccess}
+        onSuccess={async () => {
+          setShowAddEntryModal(false);
+          await fetchClassEntries();
+          setSuccess("Class added successfully");
+        }}
         setError={setError}
         setLoading={setLoading}
       />
-      <EditClassModal
-        open={showEditClassModal}
-        onClose={() => setShowEditClassModal(false)}
-        cls={editingClass}
-        onSuccess={handleEditClassSuccess}
+      {/* Edit Class Modal */}
+      <EditClassEntryModal
+        open={showEditEntryModal}
+        onClose={() => {
+          setShowEditEntryModal(false);
+          setEditingEntry(null);
+        }}
+        entry={editingEntry}
+        loading={loading}
         setError={setError}
         setLoading={setLoading}
+        onSaved={async () => {
+          setShowEditEntryModal(false);
+          setEditingEntry(null);
+          await fetchClassEntries();
+          setSuccess("Class updated successfully");
+        }}
       />
-      <DeleteClassModal
-        open={showDeleteClassModal}
-        onClose={() => setShowDeleteClassModal(false)}
-        cls={deletingClass}
-        onSuccess={handleDeleteClassSuccess}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteClassEntryModal
+        open={Boolean(deletingEntry)}
+        onClose={() => setDeletingEntry(null)}
+        entry={deletingEntry}
+        loading={loading}
         setError={setError}
         setLoading={setLoading}
+        onDeleted={async () => {
+          setDeletingEntry(null);
+          await fetchClassEntries();
+          setSuccess("Class deleted successfully");
+        }}
       />
-      <AddShiftModal
-        open={showShiftModal}
-        onClose={() => setShowShiftModal(false)}
-        onSuccess={handleAddShiftSuccess}
-        setError={setError}
-        setLoading={setLoading}
-      />
-      <EditShiftModal
-        open={showEditShiftModal}
-        onClose={() => setShowEditShiftModal(false)}
-        shift={editingShift}
-        onSuccess={handleEditShiftSuccess}
-        setError={setError}
-        setLoading={setLoading}
-      />
-      <DeleteShiftModal
-        open={showDeleteShiftModal}
-        onClose={() => setShowDeleteShiftModal(false)}
-        shift={deletingShift}
-        onSuccess={handleDeleteShiftSuccess}
-        setError={setError}
-        setLoading={setLoading}
-      />
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!success}
+        autoHideDuration={3000}
+        onClose={() => setSuccess("")}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        sx={{ zIndex: 9999 }}
+      >
+        <Alert
+          onClose={() => setSuccess("")}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {success}
+        </Alert>
+      </Snackbar>
+
+      {/* Error Snackbar */}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={4000}
+        onClose={() => setError("")}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        sx={{ zIndex: 9999 }}
+      >
+        <Alert
+          onClose={() => setError("")}
+          severity="error"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {error}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

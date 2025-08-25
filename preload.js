@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteStudent: (id) => ipcRenderer.invoke("delete-student", id),
   getNextRollNumber: (classId, shiftId, division) =>
     ipcRenderer.invoke("get-next-roll-number", classId, shiftId, division),
+  getNextRollNumberByEntry: (classEntryId, division) =>
+    ipcRenderer.invoke("get-next-roll-number-by-entry", classEntryId, division),
   getClassesByBranch: (branch_id) =>
     ipcRenderer.invoke("get-classes-by-branch", branch_id),
   addClass: (classData) => ipcRenderer.invoke("add-class", classData),
@@ -54,6 +56,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("get-next-receipt-number", paymentType),
   getStudentTermSummary: (studentId, academicYearId = null) =>
     ipcRenderer.invoke("get-student-term-summary", studentId, academicYearId),
+
+  // Unified Class Entries APIs
+  listClassEntriesByBranch: (branch_id) =>
+    ipcRenderer.invoke("list-class-entries-by-branch", branch_id),
+  addClassEntry: (payload) => ipcRenderer.invoke("add-class-entry", payload),
+  updateClassEntry: (payload) =>
+    ipcRenderer.invoke("update-class-entry", payload),
+  deleteClassEntry: (id) => ipcRenderer.invoke("delete-class-entry", id),
 
   // Reports
   saveStudentReport: (html, defaultPath) =>

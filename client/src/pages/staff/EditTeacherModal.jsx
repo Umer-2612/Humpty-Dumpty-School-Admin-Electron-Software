@@ -16,6 +16,7 @@ const EditTeacherModal = ({
   teacher,
   classes,
   shifts,
+  classEntries = [],
   onSuccess,
   setError,
   loading,
@@ -24,40 +25,90 @@ const EditTeacherModal = ({
   const [form, setForm] = useState({
     name: "",
     contact: "",
-    classIds: [],
-    shiftIds: [],
+    isOfficeStaff: false,
+    assignmentsRows: [],
   });
 
   useEffect(() => {
     if (teacher) {
+      // Build rows directly from assignments to avoid losing mapping
+      const unifiedMode = Array.isArray(classEntries) && classEntries.length > 0;
+      const rows = Array.isArray(teacher.assignments)
+        ? teacher.assignments
+            .filter((a) => a && a.class_id && a.shift_id)
+            .map((a) => {
+              if (unifiedMode) {
+                const entry = classEntries.find(
+                  (e) => e.class_id === a.class_id && e.shift_id === a.shift_id
+                );
+                if (entry) {
+                  return {
+                    classEntryId: entry.id,
+                    divisions: a.division ? [a.division] : [],
+                  };
+                }
+              }
+              return {
+                classId: a.class_id,
+                divisions: a.division ? [a.division] : [],
+                shiftIds: [a.shift_id],
+              };
+            })
+        : [];
       setForm({
         name: teacher.name || "",
         contact: teacher.contact || "",
-        classIds: teacher.class_names
-          ? classes
-              .filter((cls) => teacher.class_names.includes(cls.class_name))
-              .map((cls) => cls.id)
-          : [],
-        shiftIds: teacher.shift_names
-          ? shifts
-              .filter((s) => teacher.shift_names.includes(s.name))
-              .map((s) => s.id)
-          : [],
+        isOfficeStaff:
+          !Array.isArray(teacher.assignments) || teacher.assignments.length === 0,
+        assignmentsRows: rows,
       });
     }
-  }, [teacher, classes, shifts]);
+  }, [teacher, classes, shifts, classEntries]);
 
   const handleEditTeacher = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     try {
+      // Expand rows to assignments array (unified or legacy)
+      const rows = form.assignmentsRows || [];
+      let assignments = [];
+      const unifiedMode = Array.isArray(classEntries) && classEntries.length > 0;
+      if (form.isOfficeStaff) {
+        assignments = [];
+      } else if (unifiedMode) {
+        for (const row of rows) {
+          if (!row.classEntryId) continue;
+          const entry = classEntries.find((e) => e.id === row.classEntryId);
+          if (!entry) continue;
+          const divisions = (row.divisions || []).length ? row.divisions : [""];
+          for (const division of divisions) {
+            assignments.push({ classId: entry.class_id, shiftId: entry.shift_id, division });
+          }
+        }
+      } else {
+        for (const row of rows) {
+          if (!row.classId) continue;
+          const divisions = (row.divisions || []).length ? row.divisions : [""];
+          for (const division of divisions) {
+            for (const shiftId of row.shiftIds || []) {
+              assignments.push({ classId: row.classId, division, shiftId });
+            }
+          }
+        }
+      }
+      if (!form.name?.trim()) throw new Error("Name is required");
+      if (!form.isOfficeStaff && assignments.length === 0)
+        throw new Error(
+          unifiedMode
+            ? "Please add at least one assignment (class & shift / division)"
+            : "Please add at least one assignment (class/division/shift)"
+        );
       const res = await window.electronAPI.updateTeacher({
         id: teacher.id,
         name: form.name,
         contact: form.contact,
-        classIds: form.classIds,
-        shiftIds: form.shiftIds,
+        assignments,
       });
       if (res.success) {
         onSuccess();
@@ -65,7 +116,7 @@ const EditTeacherModal = ({
         setError(res.error || "Failed to update teacher");
       }
     } catch (err) {
-      setError("Failed to update teacher", err);
+      setError(err?.message || "Failed to update teacher");
     } finally {
       setLoading(false);
     }
@@ -113,6 +164,7 @@ const EditTeacherModal = ({
               setForm={setForm}
               classes={classes}
               shifts={shifts}
+              classEntries={classEntries}
               isEditing
             />
           </Box>

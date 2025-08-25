@@ -29,7 +29,104 @@ const Underline = ({ children, width = 200, align = "left" }) => (
       justifyContent: align === "right" ? "flex-end" : "flex-start",
     }}
   >
-    <Typography sx={{ fontSize: 16, fontWeight: 700 }}>{children}</Typography>
+    <Typography
+      sx={{
+        fontSize: 16,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </Typography>
+  </Box>
+);
+
+// Helper to normalize legacy receipt numbers e.g., c1 -> C-1, b2 -> B-2
+const normalizeReceipt = (raw) => {
+  if (!raw) return "";
+  const s = String(raw);
+  if (/^[cb]\d+$/i.test(s)) return `${s[0].toUpperCase()}-${s.slice(1)}`;
+  return s;
+};
+
+// Convert a variety of inputs into a Month name, e.g., '2025-08' -> 'August'
+const toMonthName = (val) => {
+  if (!val) return null;
+  const s = String(val).trim();
+  // Try ISO like YYYY-MM or YYYY/MM
+  let m = s.match(/^(\d{4})[-.](\d{1,2})$/);
+  if (m) {
+    const monthIdx = Math.max(0, Math.min(11, parseInt(m[2], 10) - 1));
+    return new Date(2000, monthIdx, 1).toLocaleString(undefined, {
+      month: "long",
+    });
+  }
+  // Try MM-YYYY or MM/YYYY
+  m = s.match(/^(\d{1,2})[-.](\d{4})$/);
+  if (m) {
+    const monthIdx = Math.max(0, Math.min(11, parseInt(m[1], 10) - 1));
+    return new Date(2000, monthIdx, 1).toLocaleString(undefined, {
+      month: "long",
+    });
+  }
+  // If already contains a month name, return capitalized month token
+  const monthNames = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const lower = s.toLowerCase();
+  const found = monthNames.find((mn) => lower.includes(mn));
+  if (found) return found.charAt(0).toUpperCase() + found.slice(1);
+  return null;
+};
+
+const displayUptoMonth = (monthYear, fallback) => {
+  const name = toMonthName(monthYear) || toMonthName(fallback);
+  const raw = monthYear || fallback;
+  return name ? `Upto ${name}` : raw ? `Upto ${raw}` : "-";
+};
+
+// Layout constants
+const LABEL_TEXT_W = 72; // px, default label text width
+const COL_W = 8; // px, default colon width
+const LABEL_PAD = 2; // px, right padding after label text
+const VALUE_PAD = 6; // px, left padding before value to keep even spacing after colon
+// Tighter sizing for middle column (col 2) so its label->colon gap is smaller
+const MID_LABEL_TEXT_W = 60; // px
+const MID_COL_W = 6; // px
+const MID_VALUE_PAD = 4; // px
+// Fixed column widths so each field group starts at the exact same x-position across rows
+const COL1_W = 260; // px (first column width)
+const COL2_W = 220; // px (second column width)
+const COL3_W = 220; // px (third column width)
+
+// Reusable left-aligned label with separate colon and flexible value space
+const Field = ({
+  label,
+  children,
+  labelTextW = LABEL_TEXT_W,
+  colonW = COL_W,
+  valuePad = VALUE_PAD,
+}) => (
+  <Box sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+    <Box sx={{ width: labelTextW, pr: `${LABEL_PAD}px` }}>
+      <Label>{label}</Label>
+    </Box>
+    <Box sx={{ width: colonW, display: "flex", justifyContent: "center" }}>
+      <Label>:</Label>
+    </Box>
+    <Box sx={{ flex: 1, pl: `${valuePad}px` }}>{children}</Box>
   </Box>
 );
 
@@ -195,12 +292,12 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
               sx={{ borderColor: "#222", borderBottomWidth: 2, mb: 0.5 }}
             />
 
-            {/* Row 1: Name full width */}
+            {/* Row 1: Name full width with aligned label */}
             <Grid
               container
               columnSpacing={1}
               sx={{
-                alignItems: "flex-end",
+                alignItems: "center",
                 borderBottom: "2px solid #222",
                 minHeight: 28,
                 pb: 0.25,
@@ -208,142 +305,144 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
               }}
             >
               <Grid item xs={12}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
-                  <Label>Name :</Label>
-                  <Underline width={520}>{r.student_name || ""}</Underline>
-                </Box>
+                <Field label="Name">
+                  <Underline width="100%">{r.student_name || ""}</Underline>
+                </Field>
               </Grid>
             </Grid>
 
             {/* Row 2: Class / Shift / Rcpt No */}
             <Grid
               container
-              columnSpacing={2}
+              columnSpacing={0}
               sx={{
-                alignItems: "flex-end",
+                alignItems: "center",
                 borderBottom: "2px solid #222",
                 minHeight: 32,
                 pb: 0.5,
                 mb: 0.5,
+                flexWrap: "nowrap",
               }}
             >
-              <Grid item xs={4}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
-                  <Label>Class :</Label>
-                  <Underline width={140}>{r.class_name || ""}</Underline>
+              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                <Box sx={{ width: "100%" }}>
+                  <Field label="Class">
+                    <Underline width="100%">{r.class_name || ""}</Underline>
+                  </Field>
                 </Box>
               </Grid>
-              <Grid item xs={4}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
-                  <Label>Shift :</Label>
-                  <Underline width={120}>{shiftName}</Underline>
+              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                <Box sx={{ width: "100%" }}>
+                  <Field
+                    label="Shift"
+                    labelTextW={MID_LABEL_TEXT_W}
+                    colonW={MID_COL_W}
+                    valuePad={MID_VALUE_PAD}
+                  >
+                    <Underline width="100%">{shiftName}</Underline>
+                  </Field>
                 </Box>
               </Grid>
-              <Grid item xs={4} sx={{ p: 0 }}>
-                <Grid container alignItems="flex-end" columnSpacing={0}>
-                  <Grid item xs={6}>
-                    <Box sx={{ width: "100%", textAlign: "right" }}>
-                      <Label>Rcpt. No. :</Label>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
+              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                <Box sx={{ width: "100%" }}>
+                  <Field label="Rcpt. No.">
                     <Underline width="100%" align="left">
-                      {r.receipt_number || ""}
+                      {normalizeReceipt(r.receipt_number || "")}
                     </Underline>
-                  </Grid>
-                </Grid>
+                  </Field>
+                </Box>
               </Grid>
             </Grid>
 
-            {/* Row 3: Cash / Date */}
+            {/* Row 3: Cash / Date / Spacer */}
             <Grid
               container
-              columnSpacing={2}
+              columnSpacing={0}
               sx={{
-                alignItems: "flex-end",
+                alignItems: "center",
                 borderBottom: "2px solid #222",
                 minHeight: 32,
                 pb: 0.5,
                 mb: 0.5,
+                flexWrap: "nowrap",
               }}
             >
-              <Grid item xs={8}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5 }}>
-                  <Label>Cash ₹ :</Label>
-                  <Underline width={120}>{r.amount || ""}</Underline>
-                </Box>
+              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                <Field label="Cash ₹">
+                  <Underline width="100%">
+                    {String((r.payment_type || "").toLowerCase()).includes("bank") ||
+                    String((r.payment_type || "").toLowerCase()) === "cheque"
+                      ? ""
+                      : r.amount || ""}
+                  </Underline>
+                </Field>
               </Grid>
-              <Grid item xs={4} sx={{ p: 0 }}>
-                <Grid container alignItems="flex-end" columnSpacing={0}>
-                  <Grid item xs={6}>
-                    <Box sx={{ width: "100%", textAlign: "right" }}>
-                      <Label>Date :</Label>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Underline width="100%" align="left">
-                      {r.payment_date || ""}
-                    </Underline>
-                  </Grid>
-                </Grid>
+              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                <Field
+                  label="Date"
+                  labelTextW={MID_LABEL_TEXT_W}
+                  colonW={MID_COL_W}
+                  valuePad={MID_VALUE_PAD}
+                >
+                  <Underline width="100%" align="left">
+                    {r.payment_date || ""}
+                  </Underline>
+                </Field>
+              </Grid>
+              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                <Box sx={{ width: "100%" }} />
               </Grid>
             </Grid>
 
-            {/* Row 4: Cheque No / Bank / Sign */}
+            {/* Row 4: Cheque No / Bank / Spacer */}
             <Grid
               container
-              columnSpacing={2}
+              columnSpacing={0}
               sx={{
-                alignItems: "flex-end",
+                alignItems: "center",
                 borderBottom: "2px solid #222",
                 minHeight: 28,
                 pb: 0.5,
                 mb: 0.5,
+                flexWrap: "nowrap",
               }}
             >
-              <Grid item xs={4}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5 }}>
-                  <Label>Cheque No. :</Label>
-                  <Underline width={120}>{r.cheque_number || ""}</Underline>
-                </Box>
+              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                <Field label="Cheque No.">
+                  <Underline width="100%">{r.cheque_number || ""}</Underline>
+                </Field>
               </Grid>
-              <Grid item xs={4}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 0.5 }}>
-                  <Label>Bank :</Label>
-                  <Underline width={120}>{r.bank_name || ""}</Underline>
-                </Box>
-              </Grid>
-              <Grid item xs={4}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "flex-end",
-                    gap: 0.5,
-                    justifyContent: "flex-end",
-                  }}
+              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                <Field
+                  label="Bank"
+                  labelTextW={MID_LABEL_TEXT_W}
+                  colonW={MID_COL_W}
+                  valuePad={MID_VALUE_PAD}
                 >
-                  <Label>Sign. :</Label>
-                  <Underline width={120} align="right"></Underline>
-                </Box>
+                  <Underline width="100%">{r.bank_name || ""}</Underline>
+                </Field>
+              </Grid>
+              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                <Box sx={{ width: "100%" }} />
               </Grid>
             </Grid>
 
-            {/* Row 5: Cheque / Months */}
+            {/* Row 5: Cheque / Months / Sign */}
             <Grid
               container
-              columnSpacing={2}
+              columnSpacing={0}
               sx={{
-                alignItems: "flex-end",
+                alignItems: "center",
                 borderBottom: "2px solid #222",
                 minHeight: 32,
                 pb: 0.5,
                 mb: 0.5,
+                flexWrap: "nowrap",
               }}
             >
-              <Grid item xs={8}>
-                <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1 }}>
-                  <Label>Cheque ₹ :</Label>
-                  <Underline width={120}>
+              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                <Field label="Cheque ₹">
+                  <Underline width="100%">
                     {String((r.payment_type || "").toLowerCase()).includes(
                       "bank"
                     ) ||
@@ -351,19 +450,24 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
                       ? r.amount || ""
                       : ""}
                   </Underline>
-                </Box>
+                </Field>
               </Grid>
-              <Grid item xs={4} sx={{ p: 0 }}>
-                <Grid container alignItems="flex-end" columnSpacing={0}>
-                  <Grid item xs={6}>
-                    <Box sx={{ width: "100%", textAlign: "right" }}>
-                      <Label>Months :</Label>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Underline width="100%">{r.months || "-"}</Underline>
-                  </Grid>
-                </Grid>
+              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                <Field
+                  label="Months"
+                  labelTextW={MID_LABEL_TEXT_W}
+                  colonW={MID_COL_W}
+                  valuePad={MID_VALUE_PAD}
+                >
+                  <Underline width="100%">
+                    {displayUptoMonth(r.month_year, r.months)}
+                  </Underline>
+                </Field>
+              </Grid>
+              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                <Field label="Sign.">
+                  <Underline width="100%" align="right"></Underline>
+                </Field>
               </Grid>
             </Grid>
 

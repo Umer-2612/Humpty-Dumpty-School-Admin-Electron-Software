@@ -14,8 +14,7 @@ const EditStudentModal = ({
   open,
   onClose,
   student,
-  classes,
-  shifts,
+  classEntries,
   onSuccess,
   setError,
   loading,
@@ -26,6 +25,7 @@ const EditStudentModal = ({
     roll_number: "",
     class_id: "",
     shift_id: "",
+    division: "",
     parents_contact1: "",
     parents_contact2: "",
     admission_date: "",
@@ -49,6 +49,7 @@ const EditStudentModal = ({
         roll_number: student.roll_number || "",
         class_id: student.class_id || "",
         shift_id: student.shift_id || "",
+        division: student.division || "",
         parents_contact1: student.parents_contact1 || "",
         parents_contact2: student.parents_contact2 || "",
         admission_date: student.admission_date || "",
@@ -196,8 +197,7 @@ const EditStudentModal = ({
             <StudentForm
               form={form}
               setForm={setForm}
-              classes={classes}
-              shifts={shifts}
+              classEntries={classEntries}
               step={step}
               isEditing={true}
               errors={errors}

@@ -1,6 +1,6 @@
 const db = require("./db");
 
-// Get all teachers with assigned class and shift info, grouped in JS to avoid SQL cartesian product
+// Get all teachers with assigned class/shift/division info, grouped in JS to avoid SQL cartesian product
 function getTeachers() {
   return new Promise((resolve, reject) => {
     db.all(
@@ -14,7 +14,8 @@ function getTeachers() {
                   s.id as shift_id,
                   s.name as shift_name,
                   s.start_time as start_time,
-                  s.end_time as end_time
+                  s.end_time as end_time,
+                  tcs.division as division
            FROM teacher_class_shift tcs
            LEFT JOIN classes c ON tcs.class_id = c.id
            LEFT JOIN class_shifts s ON tcs.shift_id = s.id`,
@@ -31,9 +32,21 @@ function getTeachers() {
                 class_ids: [],
                 shift_names: [],
                 shift_ids: [],
+                assignments: [], // { class_id, class_name, division, shift_id, shift_name, start_time, end_time }
               };
             });
             assignments.forEach((a) => {
+              if (!teacherMap[a.teacher_id]) return;
+              // Push full assignment row (may include null division)
+              teacherMap[a.teacher_id].assignments.push({
+                class_id: a.class_id,
+                class_name: a.class_name,
+                division: a.division || "",
+                shift_id: a.shift_id,
+                shift_name: a.shift_name,
+                start_time: a.start_time,
+                end_time: a.end_time,
+              });
               if (
                 a.class_id &&
                 !teacherMap[a.teacher_id].class_ids.includes(
@@ -67,8 +80,8 @@ function getTeachers() {
   });
 }
 
-// Add a new teacher with class and shift assignments
-function addTeacher({ name, contact, classIds = [], shiftIds = [] }) {
+// Add a new teacher with assignments (supports legacy classIds/shiftIds)
+function addTeacher({ name, contact, classIds = [], shiftIds = [], assignments = [] }) {
   return new Promise((resolve, reject) => {
     db.run(
       `INSERT INTO teachers (name, contact) VALUES (?, ?)`,
@@ -76,19 +89,29 @@ function addTeacher({ name, contact, classIds = [], shiftIds = [] }) {
       function (err) {
         if (err) return reject(err);
         const teacherId = this.lastID;
-        // Insert all combinations of classIds and shiftIds
-        const assignments = [];
-        classIds.forEach((classId) => {
-          shiftIds.forEach((shiftId) => {
-            assignments.push([teacherId, classId, shiftId]);
+        let rows = [];
+        if (Array.isArray(assignments) && assignments.length) {
+          // Use provided assignments with division support
+          rows = assignments.map((a) => [
+            teacherId,
+            a.classId,
+            a.shiftId,
+            a.division || "",
+          ]);
+        } else {
+          // Legacy path: all combinations of classIds and shiftIds without division
+          classIds.forEach((classId) => {
+            shiftIds.forEach((shiftId) => {
+              rows.push([teacherId, classId, shiftId, ""]);
+            });
           });
-        });
-        if (assignments.length === 0)
+        }
+        if (rows.length === 0)
           return resolve({ id: teacherId, name, contact });
-        const placeholders = assignments.map(() => "(?, ?, ?)").join(",");
-        const flat = assignments.flat();
+        const placeholders = rows.map(() => "(?, ?, ?, ?)").join(",");
+        const flat = rows.flat();
         db.run(
-          `INSERT INTO teacher_class_shift (teacher_id, class_id, shift_id) VALUES ${placeholders}`,
+          `INSERT INTO teacher_class_shift (teacher_id, class_id, shift_id, division) VALUES ${placeholders}`,
           flat,
           function (err2) {
             if (err2) return reject(err2);
@@ -100,8 +123,8 @@ function addTeacher({ name, contact, classIds = [], shiftIds = [] }) {
   });
 }
 
-// Update a teacher and their assignments
-function updateTeacher({ id, name, contact, classIds = [], shiftIds = [] }) {
+// Update a teacher and their assignments (supports legacy classIds/shiftIds)
+function updateTeacher({ id, name, contact, classIds = [], shiftIds = [], assignments = [] }) {
   return new Promise((resolve, reject) => {
     db.run(
       `UPDATE teachers SET name = ?, contact = ? WHERE id = ?`,
@@ -115,17 +138,21 @@ function updateTeacher({ id, name, contact, classIds = [], shiftIds = [] }) {
           function (err2) {
             if (err2) return reject(err2);
             // Insert new assignments
-            const assignments = [];
-            classIds.forEach((classId) => {
-              shiftIds.forEach((shiftId) => {
-                assignments.push([id, classId, shiftId]);
+            let rows = [];
+            if (Array.isArray(assignments) && assignments.length) {
+              rows = assignments.map((a) => [id, a.classId, a.shiftId, a.division || ""]);
+            } else {
+              classIds.forEach((classId) => {
+                shiftIds.forEach((shiftId) => {
+                  rows.push([id, classId, shiftId, ""]);
+                });
               });
-            });
-            if (assignments.length === 0) return resolve({ id, name, contact });
-            const placeholders = assignments.map(() => "(?, ?, ?)").join(",");
-            const flat = assignments.flat();
+            }
+            if (rows.length === 0) return resolve({ id, name, contact });
+            const placeholders = rows.map(() => "(?, ?, ?, ?)" ).join(",");
+            const flat = rows.flat();
             db.run(
-              `INSERT INTO teacher_class_shift (teacher_id, class_id, shift_id) VALUES ${placeholders}`,
+              `INSERT INTO teacher_class_shift (teacher_id, class_id, shift_id, division) VALUES ${placeholders}`,
               flat,
               function (err3) {
                 if (err3) return reject(err3);

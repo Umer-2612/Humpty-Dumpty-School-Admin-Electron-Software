@@ -9,7 +9,6 @@ import InputAdornment from "@mui/material/InputAdornment";
 import PersonIcon from "@mui/icons-material/Person";
 import PhoneIcon from "@mui/icons-material/Phone";
 import SchoolIcon from "@mui/icons-material/School";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import WcIcon from "@mui/icons-material/Wc";
 import HomeIcon from "@mui/icons-material/Home";
@@ -20,8 +19,7 @@ import ClassIcon from "@mui/icons-material/Class";
 const StudentForm = ({
   form,
   setForm,
-  classes,
-  shifts,
+  classEntries,
   step = 0,
   isEditing = false,
   errors = {},
@@ -30,21 +28,27 @@ const StudentForm = ({
     const { name, value } = e.target;
     setForm((prev) => {
       // If class changes, reset division so user reselects based on the new class
-      if (name === "class_id") {
-        return { ...prev, [name]: value, division: "" };
-      }
+      // With class entries, selecting class_entry sets class_id & shift_id internally
       return { ...prev, [name]: value };
     });
   };
 
-  // Auto-generate next roll number when class or shift changes (only for add mode)
+  // Determine selected entry based on current class_id and shift_id (or a stored class_entry_id)
+  const selectedEntry = (classEntries || []).find((e) => {
+    // Prefer exact match on class_id and shift_id from form
+    return (
+      String(e.class_id || "") === String(form.class_id || "") &&
+      String(e.shift_id || "") === String(form.shift_id || "")
+    );
+  });
+
+  // Auto-generate next roll number when entry or division changes (only for add mode)
   useEffect(() => {
     const fetchNextRoll = async () => {
       try {
-        if (!isEditing && form.class_id && form.shift_id && form.division) {
-          const res = await window.electronAPI.getNextRollNumber(
-            form.class_id,
-            form.shift_id,
+        if (!isEditing && selectedEntry?.id && form.division) {
+          const res = await window.electronAPI.getNextRollNumberByEntry(
+            selectedEntry.id,
             form.division
           );
           if (res && res.success) {
@@ -62,16 +66,10 @@ const StudentForm = ({
     };
     fetchNextRoll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.class_id, form.shift_id, form.division, isEditing]);
+  }, [selectedEntry?.id, form.division, isEditing]);
 
-  // Get divisions count for the selected class. Supports multiple possible field names.
-  const selectedClass = classes?.find(
-    (c) => String(c.id) === String(form.class_id)
-  );
-
-  console.log({ selectedClass });
-
-  const divisionsCount = selectedClass?.num_divisions || 0;
+  // Get divisions count from selected class entry
+  const divisionsCount = selectedEntry?.division_count || 0;
   const divisionOptions = Array.from(
     { length: Number(divisionsCount) },
     (_, i) => String.fromCharCode(65 + i)
@@ -104,26 +102,35 @@ const StudentForm = ({
           sx={{ bgcolor: "white" }}
         />
       </Grid>
-      {/* Row 2: Class | Shift | Division (aligned equal widths, no wrap on md+) */}
+      {/* Row 2: Class & Shift | Division (aligned equal widths, no wrap on md+) */}
       <Grid item xs={12}>
         <Grid
           container
           spacing={2}
           sx={{ flexWrap: { xs: "wrap", md: "nowrap" } }}
         >
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
             <TextField
               select
               required
               fullWidth
               variant="outlined"
               size="small"
-              label="Class"
-              name="class_id"
-              value={form.class_id || ""}
-              onChange={handleInputChange}
-              error={!!errors.class_id}
-              helperText={errors.class_id}
+              label="Class & Shift"
+              name="class_entry_id"
+              value={selectedEntry?.id || ""}
+              onChange={(e) => {
+                const entryId = e.target.value;
+                const entry = (classEntries || []).find((ce) => String(ce.id) === String(entryId));
+                setForm((prev) => ({
+                  ...prev,
+                  class_id: entry?.class_id || "",
+                  shift_id: entry?.shift_id || "",
+                  division: "", // reset division when changing entry
+                }));
+              }}
+              error={!!errors.class_id || !!errors.shift_id}
+              helperText={errors.class_id || errors.shift_id}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -136,47 +143,15 @@ const StudentForm = ({
                 "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
               }}
             >
-              {classes?.map((cls) => (
-                <MenuItem key={cls.id} value={cls.id}>
-                  {cls.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <TextField
-              select
-              required
-              fullWidth
-              variant="outlined"
-              size="small"
-              label="Shift"
-              name="shift_id"
-              value={form.shift_id || ""}
-              onChange={handleInputChange}
-              error={!!errors.shift_id}
-              helperText={errors.shift_id}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <AccessTimeIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                bgcolor: "white",
-                "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
-              }}
-            >
-              {shifts?.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.name}
+              {(classEntries || []).map((ce) => (
+                <MenuItem key={ce.id} value={ce.id}>
+                  {`${ce.class_name || ""} - ${ce.shift_name || ""}`}
                 </MenuItem>
               ))}
             </TextField>
           </Grid>
           {/* Division (always visible; disabled until class is selected) */}
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} md={6}>
             <TextField
               select
               fullWidth
@@ -189,7 +164,7 @@ const StudentForm = ({
               error={!!errors.division}
               helperText={
                 errors.division ||
-                (!form.class_id ? "Select a class to choose division" : "")
+                (!selectedEntry?.id ? "Select a class & shift to choose division" : "")
               }
               InputProps={{
                 startAdornment: (
@@ -202,7 +177,7 @@ const StudentForm = ({
                 bgcolor: "white",
                 "& .MuiInputBase-root": { width: "100%", minHeight: 40 },
               }}
-              disabled={!form.class_id || Number(divisionsCount) === 0}
+              disabled={!selectedEntry?.id || Number(divisionsCount) === 0}
             >
               {divisionOptions.map((d) => (
                 <MenuItem key={d} value={d}>

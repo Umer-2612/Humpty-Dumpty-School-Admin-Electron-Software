@@ -312,6 +312,16 @@ const AddFeesModal = ({
     return x + dec;
   };
 
+  // Normalize legacy receipt formats for display: c1 -> C-1, b2 -> B-2
+  const normalizeReceipt = (raw) => {
+    if (!raw) return "";
+    const s = String(raw);
+    if (/^[cb]\d+$/i.test(s)) {
+      return `${s[0].toUpperCase()}-${s.slice(1)}`;
+    }
+    return s;
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === "amount") {
@@ -350,7 +360,7 @@ const AddFeesModal = ({
       // Basic validation
       const newErrors = {};
       if (!data?.student_id) newErrors.student_id = "Student is required";
-      if (!feeTerm) newErrors.fee_term = "Term is required";
+      if (!data?.month_year) newErrors.month_year = "Upto Month is required";
       const amountNum = parseFloat(
         (data?.amount || "").toString().replace(/,/g, "")
       );
@@ -460,7 +470,7 @@ const AddFeesModal = ({
                       label="Receipt No"
                       variant="outlined"
                       size="small"
-                      value={data?.receipt_preview || ""}
+                      value={normalizeReceipt(data?.receipt_preview || "")}
                       disabled
                       InputProps={{
                         readOnly: true,
@@ -483,7 +493,7 @@ const AddFeesModal = ({
                   </Box>
                 </Grid>
 
-                {/* Term Selection */}
+                {/* Upto Month Selection */}
                 <Grid item xs={12}>
                   <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                     <Box sx={{ minWidth: 220 }}>
@@ -491,17 +501,30 @@ const AddFeesModal = ({
                         select
                         fullWidth
                         required
-                        label="Term"
+                        label="Upto Month"
                         size="small"
-                        value={feeTerm}
-                        onChange={(e) => setFeeTerm(e.target.value)}
-                        error={!!errors?.fee_term}
-                        helperText={errors?.fee_term}
+                        value={data?.month_year || ""}
+                        onChange={(e) => setData({ month_year: e.target.value })}
+                        error={!!errors?.month_year}
+                        helperText={errors?.month_year}
                         sx={{ bgcolor: "white" }}
                       >
-                        {Object.keys(termSummary?.terms || {}).map((t) => (
-                          <MenuItem key={t} value={t}>
-                            {t.toUpperCase()}
+                        {[
+                          "January",
+                          "February",
+                          "March",
+                          "April",
+                          "May",
+                          "June",
+                          "July",
+                          "August",
+                          "September",
+                          "October",
+                          "November",
+                          "December",
+                        ].map((m) => (
+                          <MenuItem key={m} value={m}>
+                            {m}
                           </MenuItem>
                         ))}
                       </TextField>

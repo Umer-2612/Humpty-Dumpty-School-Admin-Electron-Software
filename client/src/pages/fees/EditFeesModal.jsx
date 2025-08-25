@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
 import Grid from "@mui/material/Grid";
 import Divider from "@mui/material/Divider";
@@ -250,6 +251,7 @@ const EditFeesModal = ({
   const validateForm = () => {
     const newErrors = {};
     if (!formData.student_id) newErrors.student_id = "Student is required";
+    if (!formData.month_year) newErrors.month_year = "Upto Month is required";
     if (
       !formData.amount ||
       parseFloat(formData.amount.toString().replace(/,/g, "")) <= 0
@@ -342,6 +344,46 @@ const EditFeesModal = ({
           {/* Form Body */}
           <Box component="form" onSubmit={handleSubmit} sx={{ p: 3, pt: 2 }}>
             <Grid container spacing={2} sx={{ flexWrap: "wrap !important" }}>
+              {/* Upto Month Selection */}
+              <Grid item xs={12}>
+                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Box sx={{ minWidth: 220 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      required
+                      label="Upto Month"
+                      size="small"
+                      value={formData.month_year || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, month_year: e.target.value }))
+                      }
+                      error={!!errors?.month_year}
+                      helperText={errors?.month_year}
+                      sx={{ bgcolor: "white" }}
+                    >
+                      {[
+                        "January",
+                        "February",
+                        "March",
+                        "April",
+                        "May",
+                        "June",
+                        "July",
+                        "August",
+                        "September",
+                        "October",
+                        "November",
+                        "December",
+                      ].map((m) => (
+                        <MenuItem key={m} value={m}>
+                          {m}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                </Box>
+              </Grid>
               {/* Row 1: Student Selection (field width ~70%) */}
               <Grid item xs={12} sx={{ flexBasis: "100% !important" }}>
                 <Box sx={{ width: "70%" }}>

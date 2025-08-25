@@ -539,6 +539,80 @@ db.serialize(() => {
     );
   `);
 
+  // Unified Class Entries table (replaces separate classes + class_shifts usage in UI)
+  // Stores: branch, class name, shift name, optional times, fees(JSON), and division_count
+  db.run(`
+    CREATE TABLE IF NOT EXISTS class_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      branch_id INTEGER NOT NULL,
+      class_id INTEGER,
+      shift_id INTEGER,
+      class_name TEXT NOT NULL,
+      shift_name TEXT NOT NULL,
+      start_time TEXT,
+      end_time TEXT,
+      fees TEXT,
+      division_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (branch_id) REFERENCES branches (id)
+    );
+  `);
+
+  // Backfill class_entries from existing classes x class_shifts if class_entries is empty
+  db.get("SELECT COUNT(*) as cnt FROM class_entries", (err, row) => {
+    if (err) {
+      console.warn("[db.js] Failed to count class_entries:", err);
+      return;
+    }
+    if (row && row.cnt === 0) {
+      // Load shifts and classes, then create cartesian insert
+      db.all("SELECT id, name, start_time, end_time FROM class_shifts", (e1, shifts) => {
+        if (e1) {
+          console.warn("[db.js] Failed to read class_shifts for backfill:", e1);
+          return;
+        }
+        db.all("SELECT id, branch_id, name, fees, num_divisions FROM classes", (e2, classes) => {
+          if (e2) {
+            console.warn("[db.js] Failed to read classes for backfill:", e2);
+            return;
+          }
+          if (!Array.isArray(classes) || classes.length === 0) return;
+          // If there are no shifts yet, still create entries with a default shift name
+          const useShifts = Array.isArray(shifts) && shifts.length ? shifts : [{ name: 'Default', start_time: null, end_time: null }];
+          db.serialize(() => {
+            const stmt = db.prepare(`
+              INSERT INTO class_entries (branch_id, class_id, shift_id, class_name, shift_name, start_time, end_time, fees, division_count)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            try {
+              classes.forEach((c) => {
+                const divs = Math.max(0, Number(c.num_divisions) || 0);
+                const fees = c.fees || null;
+                useShifts.forEach((s) => {
+                  stmt.run(
+                    c.branch_id,
+                    c.id,
+                    s.id || null,
+                    c.name,
+                    s.name,
+                    s.start_time || null,
+                    s.end_time || null,
+                    fees,
+                    divs
+                  );
+                });
+              });
+            } catch (insErr) {
+              console.warn("[db.js] Error backfilling class_entries:", insErr);
+            } finally {
+              try { stmt.finalize(); } catch(_) {}
+            }
+          });
+        });
+      });
+    }
+  });
+
   // Class Shifts table (start_time/end_time in AM/PM format)
   db.run(`
     CREATE TABLE IF NOT EXISTS class_shifts (
@@ -582,11 +656,21 @@ db.serialize(() => {
       teacher_id INTEGER NOT NULL,
       class_id INTEGER NOT NULL,
       shift_id INTEGER NOT NULL,
+      division TEXT,
       FOREIGN KEY (teacher_id) REFERENCES teachers (id),
       FOREIGN KEY (class_id) REFERENCES classes (id),
       FOREIGN KEY (shift_id) REFERENCES class_shifts (id)
     );
   `);
+
+  // Ensure 'division' column exists on teacher_class_shift for legacy databases
+  db.all(`PRAGMA table_info(teacher_class_shift)`, (err, rows) => {
+    if (err) return;
+    const colNames = Array.isArray(rows) ? rows.map((r) => r.name) : [];
+    if (!colNames.includes("division")) {
+      db.run(`ALTER TABLE teacher_class_shift ADD COLUMN division TEXT`);
+    }
+  });
 
   // Settings table for user/global preferences
   db.run(`
@@ -614,45 +698,118 @@ db.serialize(() => {
   db.get("SELECT COUNT(*) as count FROM class_shifts", (err, row) => {
     if (row.count === 0) {
       db.run(
-        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Morning', '08:00 AM', '12:00 PM')`
+        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Morning', '08:00', '12:00')`
       );
       db.run(
-        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Afternoon', '12:00 PM', '04:00 PM')`
+        `INSERT INTO class_shifts (name, start_time, end_time) VALUES ('Afternoon', '12:00', '16:00')`
       );
     }
   });
 
-  // Seed classes if empty
+  // Seed classes if empty (attach to branches by name, not hard-coded IDs)
   db.get("SELECT COUNT(*) as count FROM classes", (err, row) => {
     if (row.count === 0) {
-      // Humpty Dumpty Day Care classes
+      // Fees templates (kept for compatibility; values are placeholders)
       const dayCareFees = JSON.stringify({ term1: 9000, term2: 9000 });
       const juniorKgFees = JSON.stringify({ term1: 10000, term2: 10000 });
-
-      // Humpty Dumpty Charitable Trust classes
       const seniorKgFees = JSON.stringify({ term1: 11000, term2: 11000 });
       const balVatikaFees = JSON.stringify({ term1: 12000, term2: 12000 });
 
-      // Insert classes for Humpty Dumpty Kindergarden (branch_id = 1)
+      // Insert Day Care + Junior Kg under 'Humpty Dumpty Kindergarden'
       db.run(
-        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (2, 'Day Care', ?, 1)`,
-        dayCareFees
+        `INSERT INTO classes (branch_id, name, fees, num_divisions)
+         SELECT id, 'Day Care', ?, 4 FROM branches WHERE name = 'Humpty Dumpty Kindergarden'`
+        , dayCareFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (2, 'Junior Kg', ?, 1)`,
-        juniorKgFees
+        `INSERT INTO classes (branch_id, name, fees, num_divisions)
+         SELECT id, 'Junior Kg', ?, 4 FROM branches WHERE name = 'Humpty Dumpty Kindergarden'`
+        , juniorKgFees
       );
 
-      // Insert classes for Humpty Dumpty Charitable Trust (branch_id = 2)
+      // Insert Senior Kg + Bal Vatika under 'Humpty Dumpty Charitable Trust'
       db.run(
-        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (1, 'Senior Kg', ?, 1)`,
-        seniorKgFees
+        `INSERT INTO classes (branch_id, name, fees, num_divisions)
+         SELECT id, 'Senior Kg', ?, 4 FROM branches WHERE name = 'Humpty Dumpty Charitable Trust'`
+        , seniorKgFees
       );
       db.run(
-        `INSERT INTO classes (branch_id, name, fees, num_divisions) VALUES (1, 'Bal Vatika', ?, 1)`,
-        balVatikaFees
+        `INSERT INTO classes (branch_id, name, fees, num_divisions)
+         SELECT id, 'Bal Vatika', ?, 4 FROM branches WHERE name = 'Humpty Dumpty Charitable Trust'`
+        , balVatikaFees
       );
     }
+  });
+
+  // NOTE: Disabled auto-correction of classes to avoid overriding user customizations.
+  // If remapping is ever needed, it should be done explicitly via an admin action, not at startup.
+
+  // NOTE: Disabled re-insertion of missing default classes. Respect manual class setup.
+
+  // NOTE: Disabled enforcing shift times and division counts globally.
+
+  // NOTE: Disabled auto-creation of class_entries rows. Manage via UI or explicit actions instead.
+
+  // Cleanup: remove any legacy 'Default' shift artifacts
+  // - Delete class_entries created earlier with placeholder 'Default' shift
+  // - Remove 'Default' shift from class_shifts so UI doesn't pick it up
+  db.run(`DELETE FROM class_entries WHERE shift_name = 'Default'`);
+  db.run(`DELETE FROM class_shifts WHERE name = 'Default'`);
+
+  // Ensure Charitable Trust classes have 4 divisions
+  db.run(`
+    UPDATE classes
+    SET num_divisions = 4
+    WHERE id IN (
+      SELECT c.id FROM classes c
+      JOIN branches b ON b.id = c.branch_id
+      WHERE b.name = 'Humpty Dumpty Charitable Trust'
+        AND c.name IN ('Senior Kg','Bal Vatika')
+    );
+  `);
+
+  // Sync existing class_entries division_count to 4 for Charitable Trust Senior Kg & Bal Vatika
+  db.run(`
+    UPDATE class_entries
+    SET division_count = 4
+    WHERE branch_id IN (SELECT id FROM branches WHERE name = 'Humpty Dumpty Charitable Trust')
+      AND class_name IN ('Senior Kg','Bal Vatika');
+  `);
+
+  // Simple insert-only backfill: add 4 entries per branch if missing (no deletes)
+  // Day Care & Junior Kg (Kindergarden) x [Morning, Afternoon]
+  // Senior Kg & Bal Vatika (Charitable Trust) x [Morning, Afternoon]
+  db.serialize(() => {
+    const ensureEntriesSQL = `
+      INSERT INTO class_entries (
+        branch_id, class_id, shift_id, class_name, shift_name, start_time, end_time, fees, division_count
+      )
+      SELECT 
+        c.branch_id,
+        c.id as class_id,
+        s.id as shift_id,
+        c.name as class_name,
+        s.name as shift_name,
+        s.start_time,
+        s.end_time,
+        c.fees,
+        c.num_divisions as division_count
+      FROM classes c
+      JOIN branches b ON b.id = c.branch_id
+      JOIN class_shifts s ON s.name IN ('Morning','Afternoon')
+      WHERE (
+        (b.name = 'Humpty Dumpty Kindergarden' AND c.name IN ('Day Care','Junior Kg'))
+        OR
+        (b.name = 'Humpty Dumpty Charitable Trust' AND c.name IN ('Senior Kg','Bal Vatika'))
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM class_entries ce
+        WHERE ce.branch_id = c.branch_id
+          AND ce.class_name = c.name
+          AND ce.shift_name = s.name
+      );
+    `;
+    db.run(ensureEntriesSQL);
   });
 });
 

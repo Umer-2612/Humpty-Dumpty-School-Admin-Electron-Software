@@ -20,11 +20,13 @@ export default function TableWrapper({
   columns,
   rows,
   pageSize = 10,
+  pagination = true,
   checkboxSelection = false,
   style = {},
   enableExport = true,
   exportFileName = "export.csv",
   pageSizeOptions = [5, 10, 25, 50],
+  hidePageSize = false,
   ...props
 }) {
   const [selectionModel, setSelectionModel] = useState([]);
@@ -156,8 +158,8 @@ export default function TableWrapper({
       <DataGrid
         rows={rows}
         columns={columns}
-        pageSizeOptions={pageSizeOptions}
-        pagination
+        pageSizeOptions={hidePageSize ? [] : pageSizeOptions}
+        pagination={pagination}
         paginationModel={paginationModel}
         onPaginationModelChange={(model) => setPaginationModel(model)}
         initialState={{

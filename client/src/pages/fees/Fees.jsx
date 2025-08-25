@@ -4,10 +4,12 @@ import AddFeesModal from "./AddFeesModal";
 import EditFeesModal from "./EditFeesModal";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import ReceiptModal from "./ReceiptModal";
+import FeesReportModal from "./FeesReportModal";
 import Tooltip from "@mui/material/Tooltip";
 import TableWrapper from "../../component/TableWrapper";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import MoneyIcon from "@mui/icons-material/Money";
 import { teal } from "@mui/material/colors";
 import PersonIcon from "@mui/icons-material/Person";
@@ -32,6 +34,7 @@ const Fees = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [editingFees, setEditingFees] = useState(null);
   const [deletingFees, setDeletingFees] = useState(null);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -57,27 +60,39 @@ const Fees = () => {
       minWidth: 120,
       headerAlign: "center",
       align: "center",
-      renderCell: (params) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            height: "100%",
-            justifyContent: "center",
-            width: "100%",
-          }}
-        >
-          <ReceiptLongIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-          <Tooltip title={params.value || ""}>
-            <span
-              style={{ cursor: "pointer", color: teal[700], fontWeight: 600 }}
-              onClick={() => handleViewReceipt(params.row)}
-            >
-              {params.value || ""}
-            </span>
-          </Tooltip>
-        </Box>
-      ),
+      renderCell: (params) => {
+        const raw = params.value || "";
+        // Normalize legacy formats: c1->C-1, b2->B-2; keep already-formatted values as-is
+        const normalized = (() => {
+          if (/^[cb]\d+$/i.test(raw)) {
+            const p = raw[0].toUpperCase();
+            const n = raw.slice(1);
+            return `${p}-${n}`;
+          }
+          return raw;
+        })();
+        return (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              height: "100%",
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            <ReceiptLongIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+            <Tooltip title={normalized}>
+              <span
+                style={{ cursor: "pointer", color: teal[700], fontWeight: 600 }}
+                onClick={() => handleViewReceipt(params.row)}
+              >
+                {normalized}
+              </span>
+            </Tooltip>
+          </Box>
+        );
+      },
     },
     {
       field: "student_name",
@@ -393,6 +408,12 @@ const Fees = () => {
     setShowAddModal(false);
     setSuccess("Fees record added successfully!");
     fetchFees();
+    // Notify other parts of the app (e.g., Students page) to refresh balances
+    try {
+      window.dispatchEvent(new CustomEvent("fees-updated", { detail: { action: "add" } }));
+    } catch (e) {
+      console.warn("Failed dispatching fees-updated event", e);
+    }
     setTimeout(() => setSuccess(""), 3000);
   };
 
@@ -401,6 +422,11 @@ const Fees = () => {
     setEditingFees(null);
     setSuccess("Fees record updated successfully!");
     fetchFees();
+    try {
+      window.dispatchEvent(new CustomEvent("fees-updated", { detail: { action: "edit" } }));
+    } catch (e) {
+      console.warn("Failed dispatching fees-updated event", e);
+    }
     setTimeout(() => setSuccess(""), 3000);
   };
 
@@ -409,6 +435,11 @@ const Fees = () => {
     setDeletingFees(null);
     setSuccess("Fees record deleted successfully!");
     fetchFees();
+    try {
+      window.dispatchEvent(new CustomEvent("fees-updated", { detail: { action: "delete" } }));
+    } catch (e) {
+      console.warn("Failed dispatching fees-updated event", e);
+    }
     setTimeout(() => setSuccess(""), 3000);
   };
 
@@ -424,15 +455,25 @@ const Fees = () => {
     >
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Fees Collection</h1>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={() => setShowAddModal(true)}
-          disabled={loading}
-          startIcon={<PaymentIcon />}
-        >
-          + Collect Fees
-        </Button>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Button
+            variant="outlined"
+            color="secondary"
+            onClick={() => setShowReportModal(true)}
+            disabled={loading}
+          >
+            Report
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => setShowAddModal(true)}
+            disabled={loading}
+            startIcon={<PaymentIcon />}
+          >
+            + Collect Fees
+          </Button>
+        </Stack>
       </div>
 
       <Paper
@@ -485,6 +526,11 @@ const Fees = () => {
         open={showReceiptModal}
         onClose={() => setShowReceiptModal(false)}
         feesRecord={selectedReceipt}
+      />
+
+      <FeesReportModal
+        open={showReportModal}
+        onClose={() => setShowReportModal(false)}
       />
 
       {/* Success Snackbar */}
