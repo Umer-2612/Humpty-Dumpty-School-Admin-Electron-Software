@@ -97,6 +97,8 @@ export default function FeesReportModal({ open, onClose }) {
   const [selectedMonths, setSelectedMonths] = useState([]); // multiple selection
   // No extra exporting controls to match other report UIs
 
+  console.log(classOptions);
+
   useEffect(() => {
     const load = async () => {
       if (!open) return;
@@ -170,9 +172,7 @@ export default function FeesReportModal({ open, onClose }) {
           setClassEntries([]);
           return;
         }
-        const list = await window.electronAPI.listClassEntriesByBranch(
-          branch.id
-        );
+        const list = await window.electronAPI.listClassesByBranch(branch.id);
         setClassEntries(list || []);
       } catch (e) {
         console.error("Failed to fetch class entries for fees report", e);

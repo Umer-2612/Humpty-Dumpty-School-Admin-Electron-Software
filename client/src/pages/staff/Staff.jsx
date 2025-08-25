@@ -229,7 +229,7 @@ const Staff = () => {
         const branches = await window.electronAPI.getBranches();
         const lists = await Promise.all(
           (branches || []).map((b) =>
-            window.electronAPI.listClassEntriesByBranch(b.id)
+            window.electronAPI.listClassesByBranch(b.id)
           )
         );
         setClassEntries([].concat(...lists.filter(Boolean)));

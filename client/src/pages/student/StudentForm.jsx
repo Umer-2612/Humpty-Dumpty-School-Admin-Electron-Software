@@ -33,13 +33,10 @@ const StudentForm = ({
     });
   };
 
-  // Determine selected entry based on current class_id and shift_id (or a stored class_entry_id)
+  // Determine selected entry based on current class_id
   const selectedEntry = (classEntries || []).find((e) => {
-    // Prefer exact match on class_id and shift_id from form
-    return (
-      String(e.class_id || "") === String(form.class_id || "") &&
-      String(e.shift_id || "") === String(form.shift_id || "")
-    );
+    // Match on class_id from form
+    return String(e.class_id || "") === String(form.class_id || "");
   });
 
   // Auto-generate next roll number when entry or division changes (only for add mode)
@@ -116,7 +113,7 @@ const StudentForm = ({
               fullWidth
               variant="outlined"
               size="small"
-              label="Class & Shift"
+              label="Class"
               name="class_entry_id"
               value={selectedEntry?.id || ""}
               onChange={(e) => {
@@ -125,12 +122,11 @@ const StudentForm = ({
                 setForm((prev) => ({
                   ...prev,
                   class_id: entry?.class_id || "",
-                  shift_id: entry?.shift_id || "",
                   division: "", // reset division when changing entry
                 }));
               }}
-              error={!!errors.class_id || !!errors.shift_id}
-              helperText={errors.class_id || errors.shift_id}
+              error={!!errors.class_id}
+              helperText={errors.class_id}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -145,7 +141,7 @@ const StudentForm = ({
             >
               {(classEntries || []).map((ce) => (
                 <MenuItem key={ce.id} value={ce.id}>
-                  {`${ce.class_name || ""} - ${ce.shift_name || ""}`}
+                  {`${ce.class_name || ""} ${ce.shift_name ? `- ${ce.shift_name}` : ""}`}
                 </MenuItem>
               ))}
             </TextField>
@@ -164,7 +160,7 @@ const StudentForm = ({
               error={!!errors.division}
               helperText={
                 errors.division ||
-                (!selectedEntry?.id ? "Select a class & shift to choose division" : "")
+                (!selectedEntry?.id ? "Select a class to choose division" : "")
               }
               InputProps={{
                 startAdornment: (

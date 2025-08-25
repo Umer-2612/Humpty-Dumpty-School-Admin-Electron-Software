@@ -32,7 +32,7 @@ import YearSwitcher from "./YearSwitcher";
 const menuItems = [
   { label: "Dashboard", icon: HomeIcon },
   { label: "Students", icon: UsersIcon },
-  { label: "Academic Settings", icon: LibraryBooksIcon },
+  { label: "Classes", icon: LibraryBooksIcon },
   { label: "Staff", icon: SettingsIcon },
   { label: "Transport", icon: BusFrontIcon },
   { label: "Fees", icon: BookIcon },
@@ -129,42 +129,45 @@ export default function Sidebar({ activePage, setActivePage }) {
       )}
 
       <List>
-        {menuItems.map(({ label, icon: Icon }) => (
-          <ListItem key={label} disablePadding sx={{ display: "block" }}>
-            <ListItemButton
-              selected={activePage === label}
-              onClick={() => setActivePage(label)}
-              sx={{
-                minHeight: 48,
-                justifyContent: collapsed ? "center" : "initial",
-                px: 2.5,
-                mx: 2,
-                borderRadius: 1,
-                "&.Mui-selected": {
-                  backgroundColor: "#2563eb", // blue-600
-                  "&:hover": {
-                    backgroundColor: "#1d4ed8", // blue-700
-                  },
-                },
-              }}
-            >
-              <ListItemIcon
+        {menuItems.map(({ label, icon }) => {
+          const IconComponent = icon;
+          return (
+            <ListItem key={label} disablePadding sx={{ display: "block" }}>
+              <ListItemButton
+                selected={activePage === label}
+                onClick={() => setActivePage(label)}
                 sx={{
-                  minWidth: 0,
-                  mr: collapsed ? "auto" : 3,
-                  justifyContent: "center",
-                  color: "inherit",
+                  minHeight: 48,
+                  justifyContent: collapsed ? "center" : "initial",
+                  px: 2.5,
+                  mx: 2,
+                  borderRadius: 1,
+                  "&.Mui-selected": {
+                    backgroundColor: "#2563eb", // blue-600
+                    "&:hover": {
+                      backgroundColor: "#1d4ed8", // blue-700
+                    },
+                  },
                 }}
               >
-                <Icon />
-              </ListItemIcon>
-              <ListItemText
-                primary={label}
-                sx={{ opacity: collapsed ? 0 : 1 }}
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: collapsed ? "auto" : 3,
+                    justifyContent: "center",
+                    color: "inherit",
+                  }}
+                >
+                  <IconComponent />
+                </ListItemIcon>
+                <ListItemText
+                  primary={label}
+                  sx={{ opacity: collapsed ? 0 : 1 }}
+                />
+              </ListItemButton>
+            </ListItem>
+          );
+        })}
       </List>
 
       <Box sx={{ flexGrow: 1 }} />

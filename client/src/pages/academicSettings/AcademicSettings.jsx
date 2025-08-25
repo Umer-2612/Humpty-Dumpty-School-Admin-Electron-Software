@@ -14,9 +14,9 @@ import EditClassEntryModal from "./EditClassEntryModal";
 import DeleteClassEntryModal from "./DeleteClassEntryModal";
 import AddClassEntryModal from "./AddClassEntryModal";
 
-const SETTINGS_KEY = "academicSettingsTableSettings";
+const SETTINGS_KEY = "classesTableSettings";
 
-const AcademicSettings = () => {
+const Classes = () => {
   const { selected: selectedBranch } = useBranch();
   const [classEntries, setClassEntries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -156,7 +156,7 @@ const AcademicSettings = () => {
     if (!selectedBranch?.id) return;
     setLoading(true);
     try {
-      const data = await window.electronAPI.listClassEntriesByBranch(
+      const data = await window.electronAPI.listClassesByBranch(
         selectedBranch.id
       );
       setClassEntries(data || []);
@@ -324,4 +324,4 @@ const AcademicSettings = () => {
   );
 };
 
-export default AcademicSettings;
+export default Classes;

@@ -43,8 +43,6 @@ const Students = () => {
   const { selected: selectedBranch } = useBranch();
   const { selected: selectedYear } = useYear();
   const [students, setStudents] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [shifts, setShifts] = useState([]);
   const [classEntries, setClassEntries] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -60,15 +58,21 @@ const Students = () => {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportClassId, setReportClassId] = useState("");
-  const [reportShiftId, setReportShiftId] = useState("");
   const [reportGender, setReportGender] = useState("");
 
-  // Map shifts by id for quick lookup (for report column)
-  const shiftsById = useMemo(() => {
-    const m = new Map();
-    (shifts || []).forEach((s) => m.set(String(s.id), s));
-    return m;
-  }, [shifts]);
+  // Extract classes from classEntries for reports
+  const classes = useMemo(() => {
+    return (classEntries || []).map((entry) => ({
+      id: entry.class_id || entry.id,
+      name: entry.class_name,
+      shift_name: entry.shift_name,
+      display_name: entry.class_name
+        ? `${entry.class_name}${
+            entry.shift_name ? ` - ${entry.shift_name}` : ""
+          }`
+        : entry.class_name || "",
+    }));
+  }, [classEntries]);
 
   // Add serial numbers to students data
   const studentsWithSrNo = students.map((item, index) => ({
@@ -84,33 +88,20 @@ const Students = () => {
         (s) => String(s.class_id || s.classId) === String(reportClassId)
       );
     }
-    if (reportShiftId) {
-      list = list.filter(
-        (s) => String(s.shift_id || s.shiftId) === String(reportShiftId)
-      );
-    }
     if (reportGender) {
       list = list.filter(
         (s) => String(s.gender || "").toLowerCase() === reportGender
       );
     }
     return list.map((item, index) => {
-      // derive shift display once to avoid grid valueGetter issues
-      const direct = item.shift_name || item.shift || item.shiftName;
-      let shift_display = direct || "";
-      if (!shift_display) {
-        const maybeId = item.shift_id ?? item.shiftId ?? item.class_shift_id;
-        if (maybeId != null) {
-          const s = shiftsById.get(String(maybeId));
-          shift_display = s ? s.shift_name || s.name || "" : "";
-        }
-      }
       const class_display = item.class_name
-        ? `${item.class_name}${item.division ? ` (${item.division})` : ""}`
+        ? `${item.class_name}${item.shift_name ? ` - ${item.shift_name}` : ""}${
+            item.division ? ` (${item.division})` : ""
+          }`
         : item.class_name || "";
-      return { ...item, srNo: index + 1, shift_display, class_display };
+      return { ...item, srNo: index + 1, class_display };
     });
-  }, [students, reportClassId, reportShiftId, reportGender, shiftsById]);
+  }, [students, reportClassId, reportGender]);
 
   // Labels for report header summary
   const reportClassLabel = useMemo(() => {
@@ -118,16 +109,8 @@ const Students = () => {
     const c = (classes || []).find(
       (x) => String(x.id) === String(reportClassId)
     );
-    return c?.name || String(reportClassId);
+    return c?.display_name || String(reportClassId);
   }, [reportClassId, classes]);
-
-  const reportShiftLabel = useMemo(() => {
-    if (!reportShiftId) return "All";
-    const s = (shifts || []).find(
-      (x) => String(x.id) === String(reportShiftId)
-    );
-    return s?.shift_name || s?.name || String(reportShiftId);
-  }, [reportShiftId, shifts]);
 
   const reportGenderLabel = useMemo(() => {
     if (!reportGender) return "All";
@@ -197,12 +180,6 @@ const Students = () => {
         flex: 0.8,
         minWidth: 120,
       },
-      {
-        field: "shift_display",
-        headerName: "Shift",
-        flex: 0.8,
-        minWidth: 120,
-      },
     ],
     []
   );
@@ -216,7 +193,6 @@ const Students = () => {
         { key: "parents_contact1", title: "Parent Contact 1" },
         { key: "parents_contact2", title: "Parent Contact 2" },
         { key: "class_name", title: "Class" },
-        { key: "shift_display", title: "Shift" },
       ];
 
       const htmlRows = (rows || [])
@@ -227,7 +203,6 @@ const Students = () => {
             r.parents_contact1 || "",
             r.parents_contact2 || "",
             r.class_display || "",
-            r.shift_display || "",
           ].map((v) =>
             String(v)
               .replace(/&/g, "&amp;")
@@ -264,13 +239,12 @@ const Students = () => {
       <body>
         <div class="header">
           <div class="branch">${branchLabel}</div>
-          <div class="subject">Subject: Student Report</div>
+          <div class="subject">Student Report</div>
           <div class="meta">${reportGeneratedAt} • Total: ${reportCount}</div>
           <div class="chips">
             <span class="chip">Branch: ${branchLabel}</span>
             <span class="chip">Year: ${yearLabel}</span>
             <span class="chip">Class: ${reportClassLabel}</span>
-            <span class="chip">Shift: ${reportShiftLabel}</span>
             <span class="chip">Gender: ${reportGenderLabel}</span>
           </div>
         </div>
@@ -290,7 +264,6 @@ const Students = () => {
       branchLabel,
       yearLabel,
       reportClassLabel,
-      reportShiftLabel,
       reportGenderLabel,
       reportGeneratedAt,
       reportCount,
@@ -333,7 +306,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <PersonIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -347,7 +329,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <BadgeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -357,14 +348,31 @@ const Students = () => {
         headerName: "Class",
         flex: 0.8,
         minWidth: 120,
-        renderCell: (params) => (
-          <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
-            <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
-            <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
-            </Tooltip>
-          </Box>
-        ),
+        renderCell: (params) => {
+          const row = params.row;
+          const displayText = row.class_name
+            ? `${row.class_name}${
+                row.shift_name ? ` - ${row.shift_name}` : ""
+              }${row.division ? ` (${row.division})` : ""}`
+            : row.class_name || "";
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+              <SchoolIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
+              <Tooltip title={displayText}>
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: "100%",
+                  }}
+                >
+                  {displayText}
+                </span>
+              </Tooltip>
+            </Box>
+          );
+        },
       },
       {
         field: "branch_name",
@@ -386,7 +394,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -400,7 +417,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <PhoneIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -414,7 +440,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <WcIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -430,7 +465,16 @@ const Students = () => {
               sx={{ mr: 1, color: teal[700], fontSize: 18 }}
             />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -446,7 +490,16 @@ const Students = () => {
               sx={{ mr: 1, color: teal[700], fontSize: 18 }}
             />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -460,7 +513,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <CurrencyRupeeIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -474,7 +536,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <LocationOnIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -499,7 +570,16 @@ const Students = () => {
           <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
             <CalendarTodayIcon sx={{ mr: 1, color: teal[700], fontSize: 18 }} />
             <Tooltip title={params.value || ""}>
-              <span>{params.value || ""}</span>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: "100%",
+                }}
+              >
+                {params.value || ""}
+              </span>
             </Tooltip>
           </Box>
         ),
@@ -597,27 +677,9 @@ const Students = () => {
     }
   }, [selectedBranch, selectedYear]);
 
-  const fetchClasses = useCallback(async (branch_id) => {
-    try {
-      const data = await window.electronAPI.getClassesByBranch(branch_id);
-      setClasses(data);
-    } catch (err) {
-      setError("Failed to fetch classes", err);
-    }
-  }, []);
-
-  const fetchShifts = useCallback(async () => {
-    try {
-      const data = await window.electronAPI.getClassShifts();
-      setShifts(data);
-    } catch (err) {
-      setError("Failed to fetch shifts", err);
-    }
-  }, []);
-
   const fetchClassEntries = useCallback(async (branch_id) => {
     try {
-      const data = await window.electronAPI.listClassEntriesByBranch(branch_id);
+      const data = await window.electronAPI.listClassesByBranch(branch_id);
       setClassEntries(data || []);
     } catch (err) {
       setError("Failed to fetch class entries", err);
@@ -639,17 +701,11 @@ const Students = () => {
 
   useEffect(() => {
     if (selectedBranch?.id) {
-      fetchClasses(selectedBranch.id);
       fetchClassEntries(selectedBranch.id);
     } else {
-      setClasses([]);
       setClassEntries([]);
     }
-  }, [fetchClasses, fetchClassEntries, selectedBranch]);
-
-  useEffect(() => {
-    fetchShifts();
-  }, [fetchShifts]);
+  }, [fetchClassEntries, selectedBranch]);
 
   useEffect(() => {
     let mounted = true;
@@ -793,7 +849,6 @@ const Students = () => {
         open={showViewModal}
         onClose={() => setShowViewModal(false)}
         student={viewingStudent}
-        shifts={shifts}
       />
 
       <Paper
@@ -890,7 +945,6 @@ const Students = () => {
             <Chip size="small" label={`Branch: ${branchLabel}`} />
             <Chip size="small" label={`Year: ${yearLabel}`} />
             <Chip size="small" label={`Class: ${reportClassLabel}`} />
-            <Chip size="small" label={`Shift: ${reportShiftLabel}`} />
             <Chip size="small" label={`Gender: ${reportGenderLabel}`} />
           </Stack>
           <Divider sx={{ mb: 2 }} />
@@ -913,26 +967,7 @@ const Students = () => {
                 </MenuItem>
                 {(classes || []).map((c) => (
                   <MenuItem key={c.id} value={c.id}>
-                    {c.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel id="report-shift-label">Shift</InputLabel>
-              <Select
-                labelId="report-shift-label"
-                label="Shift"
-                value={reportShiftId}
-                onChange={(e) => setReportShiftId(e.target.value)}
-              >
-                <MenuItem value="">
-                  <em>All</em>
-                </MenuItem>
-                {(shifts || []).map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.shift_name || s.name}
+                    {c.display_name}
                   </MenuItem>
                 ))}
               </Select>
@@ -960,7 +995,6 @@ const Students = () => {
               color="inherit"
               onClick={() => {
                 setReportClassId("");
-                setReportShiftId("");
                 setReportGender("");
               }}
               sx={{ ml: "auto" }}

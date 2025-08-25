@@ -1,6 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
-const { spawn } = require("child_process");
 const fs = require("fs");
 // Defer requiring backend modules until app is ready so db.js can resolve userData path
 let getBranches;
@@ -13,7 +12,6 @@ let getStudents,
   updateStudent,
   deleteStudent,
   getStudentById;
-let getClassesByBranch, addClass, updateClass, deleteClass;
 let getSetting, setSetting;
 let getTeachers, addTeacher, updateTeacher, deleteTeacher;
 let getTransport, addTransport, updateTransport, deleteTransport;
@@ -25,8 +23,8 @@ let getFees,
   getFeesReceipt,
   getNextReceiptNumber,
   getStudentTermSummary;
-let getClassShifts, addClassShift, updateClassShift, deleteClassShift;
-let listClassEntriesByBranch, addClassEntry, updateClassEntry, deleteClassEntry;
+// Class shifts not needed
+let listClassesByBranch, addClass, updateClass, deleteClass;
 let listAcademicYears,
   addAcademicYear,
   updateAcademicYear,
@@ -43,100 +41,147 @@ function createWindow() {
     },
   });
 
-  // Unified Class Entries IPC handlers
-  ipcMain.handle("list-class-entries-by-branch", async (event, branch_id) => {
+  // Unified Classes IPC handlers
+  ipcMain.handle("list-classes-by-branch", async (event, branch_id) => {
     try {
-      return await listClassEntriesByBranch(branch_id);
+      return await listClassesByBranch(branch_id);
     } catch (error) {
-      console.error("[main.js] Error in 'list-class-entries-by-branch':", error);
+      console.error("[main.js] Error in 'list-classes-by-branch':", error);
       return [];
     }
   });
 
-  ipcMain.handle("add-class-entry", async (event, payload) => {
+  ipcMain.handle("add-class", async (event, payload) => {
     try {
-      const result = await addClassEntry(payload);
+      const result = await addClass(payload);
       return { success: true, entry: result };
     } catch (error) {
-      console.error("[main.js] Error in 'add-class-entry':", error);
+      console.error("[main.js] Error in 'add-class':", error);
       return { success: false, error: error.message };
     }
   });
 
-  ipcMain.handle("update-class-entry", async (event, payload) => {
+  ipcMain.handle("update-class", async (event, payload) => {
     try {
-      const result = await updateClassEntry(payload);
+      const result = await updateClass(payload);
       return { success: true, entry: result };
     } catch (error) {
-      console.error("[main.js] Error in 'update-class-entry':", error);
+      console.error("[main.js] Error in 'update-class':", error);
       return { success: false, error: error.message };
     }
   });
 
-  ipcMain.handle("delete-class-entry", async (event, id) => {
+  ipcMain.handle("delete-class", async (event, id) => {
     try {
-      const result = await deleteClassEntry(id);
+      const result = await deleteClass(id);
       return { success: true, id: result.id };
     } catch (error) {
-      console.error("[main.js] Error in 'delete-class-entry':", error);
+      console.error("[main.js] Error in 'delete-class':", error);
       return { success: false, error: error.message };
     }
   });
 
-// Utility: Save HTML content directly as PDF using printToPDF
-ipcMain.handle("save-student-report-pdf", async (event, payload) => {
-  const { html, defaultPath } = payload || {};
-  if (!html || typeof html !== "string") {
-    return { success: false, error: "No HTML content provided" };
-  }
-  let pdfWin;
-  try {
-    pdfWin = new BrowserWindow({
-      show: false,
-      webPreferences: {
-        contextIsolation: true,
-        sandbox: true,
-      },
-    });
-    const dataUrl = "data:text/html;charset=utf-8," + encodeURIComponent(html);
-    await pdfWin.loadURL(dataUrl);
-    const pdf = await pdfWin.webContents.printToPDF({
-      marginsType: 1,
-      pageSize: "A4",
-      printBackground: true,
-      landscape: false,
-    });
-
-    const win = BrowserWindow.getFocusedWindow();
-    const { canceled, filePath } = await dialog.showSaveDialog(win || null, {
-      title: "Save Student Report PDF",
-      defaultPath: defaultPath || "student-report.pdf",
-      filters: [
-        { name: "PDF", extensions: ["pdf"] },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    });
-    if (canceled || !filePath) {
-      return { success: false, canceled: true };
+  // Utility: Save HTML content directly as PDF using printToPDF
+  ipcMain.handle("save-student-report-pdf", async (event, payload) => {
+    const { html, defaultPath } = payload || {};
+    if (!html || typeof html !== "string") {
+      return { success: false, error: "No HTML content provided" };
     }
-    await fs.promises.writeFile(filePath, pdf);
-    return { success: true, path: filePath };
-  } catch (error) {
-    console.error("[main.js] Error in 'save-student-report-pdf':", error);
-    return { success: false, error: error.message };
-  } finally {
-    if (pdfWin) pdfWin.destroy();
-  }
-});
+    let pdfWin;
+    try {
+      pdfWin = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+          sandbox: true,
+        },
+      });
+      const dataUrl =
+        "data:text/html;charset=utf-8," + encodeURIComponent(html);
+      await pdfWin.loadURL(dataUrl);
+      const pdf = await pdfWin.webContents.printToPDF({
+        marginsType: 1,
+        pageSize: "A4",
+        printBackground: true,
+        landscape: false,
+      });
 
-ipcMain.handle("get-student-by-id", async (event, id) => {
-  try {
-    return await getStudentById(id);
-  } catch (error) {
-    console.error("[main.js] Error in 'get-student-by-id' handler:", error);
-    return null;
-  }
-});
+      const win = BrowserWindow.getFocusedWindow();
+      const { canceled, filePath } = await dialog.showSaveDialog(win || null, {
+        title: "Save Student Report PDF",
+        defaultPath: defaultPath || "student-report.pdf",
+        filters: [
+          { name: "PDF", extensions: ["pdf"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+      await fs.promises.writeFile(filePath, pdf);
+      return { success: true, path: filePath };
+    } catch (error) {
+      console.error("[main.js] Error in 'save-student-report-pdf':", error);
+      return { success: false, error: error.message };
+    } finally {
+      if (pdfWin) pdfWin.destroy();
+    }
+  });
+
+  ipcMain.handle("get-student-by-id", async (event, id) => {
+    try {
+      return await getStudentById(id);
+    } catch (error) {
+      console.error("[main.js] Error in 'get-student-by-id' handler:", error);
+      return null;
+    }
+  });
+
+  // Academic Years IPC handlers
+  ipcMain.handle("list-academic-years", async () => {
+    try {
+      return await listAcademicYears();
+    } catch (error) {
+      console.error("[main.js] Error in 'list-academic-years':", error);
+      return [];
+    }
+  });
+  
+  ipcMain.handle("add-academic-year", async (event, payload) => {
+    try {
+      return await addAcademicYear(payload);
+    } catch (error) {
+      console.error("[main.js] Error in 'add-academic-year':", error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  ipcMain.handle("update-academic-year", async (event, payload) => {
+    try {
+      return await updateAcademicYear(payload);
+    } catch (error) {
+      console.error("[main.js] Error in 'update-academic-year':", error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  ipcMain.handle("set-active-academic-year", async (event, id) => {
+    try {
+      return await setActiveAcademicYear(id);
+    } catch (error) {
+      console.error("[main.js] Error in 'set-active-academic-year':", error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  ipcMain.handle("get-active-academic-year", async () => {
+    try {
+      return await getActiveAcademicYear();
+    } catch (error) {
+      console.error("[main.js] Error in 'get-active-academic-year':", error);
+      return null;
+    }
+  });
 
   const startURL = app.isPackaged
     ? `file://${path.join(__dirname, "client/dist/index.html")}`
@@ -159,16 +204,25 @@ app.whenReady().then(() => {
       deleteStudent,
       getStudentById,
     } = require("./server/students"));
-    ({ getClassesByBranch, addClass, updateClass, deleteClass } = require(
-      "./server/classes"
-    ));
+    ({
+      getClassesByBranch,
+      addClass,
+      updateClass,
+      deleteClass,
+    } = require("./server/classes"));
     ({ getSetting, setSetting } = require("./server/settings"));
-    ({ getTeachers, addTeacher, updateTeacher, deleteTeacher } = require(
-      "./server/teachers"
-    ));
-    ({ getTransport, addTransport, updateTransport, deleteTransport } = require(
-      "./server/transport"
-    ));
+    ({
+      getTeachers,
+      addTeacher,
+      updateTeacher,
+      deleteTeacher,
+    } = require("./server/teachers"));
+    ({
+      getTransport,
+      addTransport,
+      updateTransport,
+      deleteTransport,
+    } = require("./server/transport"));
     ({
       getFees,
       addFees,
@@ -179,15 +233,13 @@ app.whenReady().then(() => {
       getNextReceiptNumber,
       getStudentTermSummary,
     } = require("./server/fees"));
-    ({ getClassShifts, addClassShift, updateClassShift, deleteClassShift } = require(
-      "./server/class_shifts"
-    ));
+    // Class shifts module not needed - removing reference
     ({
-      listClassEntriesByBranch,
-      addClassEntry,
-      updateClassEntry,
-      deleteClassEntry,
-    } = require("./server/class_entries"));
+      listClassesByBranch,
+      addClass,
+      updateClass,
+      deleteClass,
+    } = require("./server/classes"));
     ({
       listAcademicYears,
       addAcademicYear,
@@ -229,47 +281,6 @@ ipcMain.handle("save-student-report", async (event, payload) => {
   }
 });
 
-// Academic Years IPC handlers (top-level)
-ipcMain.handle("list-academic-years", async () => {
-  try {
-    return await listAcademicYears();
-  } catch (error) {
-    console.error("[main.js] Error in 'list-academic-years':", error);
-    return [];
-  }
-});
-ipcMain.handle("add-academic-year", async (event, payload) => {
-  try {
-    return await addAcademicYear(payload);
-  } catch (error) {
-    console.error("[main.js] Error in 'add-academic-year':", error);
-    return { success: false, error: error.message };
-  }
-});
-ipcMain.handle("update-academic-year", async (event, payload) => {
-  try {
-    return await updateAcademicYear(payload);
-  } catch (error) {
-    console.error("[main.js] Error in 'update-academic-year':", error);
-    return { success: false, error: error.message };
-  }
-});
-ipcMain.handle("set-active-academic-year", async (event, id) => {
-  try {
-    return await setActiveAcademicYear(id);
-  } catch (error) {
-    console.error("[main.js] Error in 'set-active-academic-year':", error);
-    return { success: false, error: error.message };
-  }
-});
-ipcMain.handle("get-active-academic-year", async () => {
-  try {
-    return await getActiveAcademicYear();
-  } catch (error) {
-    console.error("[main.js] Error in 'get-active-academic-year':", error);
-    return null;
-  }
-});
 
 // IPC handlers
 ipcMain.handle("get-branches", async () => {
@@ -284,38 +295,63 @@ ipcMain.handle("get-branches", async () => {
   }
 });
 
-ipcMain.handle("get-students", async (event, branch_id, academicYearId = null) => {
-  console.log("[main.js] IPC handler 'get-students' invoked.", branch_id, academicYearId);
-  try {
-    const students = await getStudents(branch_id, academicYearId);
-    return students;
-  } catch (error) {
-    console.error("[main.js] Error in 'get-students' handler:", error);
-    return [];
+ipcMain.handle(
+  "get-students",
+  async (event, branch_id, academicYearId = null) => {
+    console.log(
+      "[main.js] IPC handler 'get-students' invoked.",
+      branch_id,
+      academicYearId
+    );
+    try {
+      const students = await getStudents(branch_id, academicYearId);
+      return students;
+    } catch (error) {
+      console.error("[main.js] Error in 'get-students' handler:", error);
+      return [];
+    }
   }
-});
+);
 
-ipcMain.handle("search-students", async (event, branch_id, query, academicYearId = null) => {
-  console.log("[main.js] IPC handler 'search-students' invoked.", branch_id, query, academicYearId);
-  try {
-    const students = await searchStudents(branch_id, query, academicYearId);
-    return students;
-  } catch (error) {
-    console.error("[main.js] Error in 'search-students' handler:", error);
-    return [];
+ipcMain.handle(
+  "search-students",
+  async (event, branch_id, query, academicYearId = null) => {
+    console.log(
+      "[main.js] IPC handler 'search-students' invoked.",
+      branch_id,
+      query,
+      academicYearId
+    );
+    try {
+      const students = await searchStudents(branch_id, query, academicYearId);
+      return students;
+    } catch (error) {
+      console.error("[main.js] Error in 'search-students' handler:", error);
+      return [];
+    }
   }
-});
+);
 
-ipcMain.handle("get-next-roll-number", async (event, classId, shiftId, division) => {
-  console.log("[main.js] IPC handler 'get-next-roll-number' invoked.", { classId, shiftId, division });
-  try {
-    const next = await getNextRollNumber(classId, shiftId, division);
-    return { success: true, next };
-  } catch (error) {
-    console.error("[main.js] Error in 'get-next-roll-number' handler:", error);
-    return { success: false, error: error.message };
+ipcMain.handle(
+  "get-next-roll-number",
+  async (event, classId, shiftId, division) => {
+    console.log("[main.js] IPC handler 'get-next-roll-number' invoked.", {
+      classId,
+      shiftId,
+      division,
+    });
+    try {
+      const next = await getNextRollNumber(classId, shiftId, division);
+      return { success: true, next };
+    } catch (error) {
+      console.error(
+        "[main.js] Error in 'get-next-roll-number' handler:",
+        error
+      );
+      return { success: false, error: error.message };
+    }
   }
-});
+);
 
 ipcMain.handle(
   "get-next-roll-number-by-entry",
@@ -363,10 +399,13 @@ ipcMain.handle("update-student", async (event, studentData) => {
 });
 
 ipcMain.handle("delete-student", async (event, id) => {
-  console.log("🔵 [BACKEND] main.js: IPC handler 'delete-student' invoked with ID:", id);
+  console.log(
+    "🔵 [BACKEND] main.js: IPC handler 'delete-student' invoked with ID:",
+    id
+  );
   console.log("🔵 [BACKEND] main.js: ID type:", typeof id);
   console.log("🔵 [BACKEND] main.js: ID value:", JSON.stringify(id));
-  
+
   try {
     console.log("🔵 [BACKEND] main.js: Calling deleteStudent function...");
     const result = await deleteStudent(id);
@@ -374,7 +413,10 @@ ipcMain.handle("delete-student", async (event, id) => {
     console.log("🔵 [BACKEND] main.js: Returning success response");
     return { success: true, id: result.id };
   } catch (error) {
-    console.error("🔵 [BACKEND] main.js: Error in 'delete-student' handler:", error);
+    console.error(
+      "🔵 [BACKEND] main.js: Error in 'delete-student' handler:",
+      error
+    );
     console.error("🔵 [BACKEND] main.js: Error message:", error.message);
     console.error("🔵 [BACKEND] main.js: Error stack:", error.stack);
     return {
@@ -390,53 +432,6 @@ ipcMain.handle("get-classes", async () => {
   } catch (error) {
     console.error("[main.js] Error in 'get-classes' handler:", error);
     return [];
-  }
-});
-
-ipcMain.handle("get-classes-by-branch", async (event, branch_id) => {
-  console.log(
-    "[main.js] IPC handler 'get-classes-by-branch' invoked.",
-    branch_id
-  );
-  try {
-    const classes = await getClassesByBranch(branch_id);
-    return classes;
-  } catch (error) {
-    console.error("[main.js] Error in 'get-classes-by-branch' handler:", error);
-    return [];
-  }
-});
-
-ipcMain.handle("add-class", async (event, classData) => {
-  console.log("[main.js] IPC handler 'add-class' invoked.", classData);
-  try {
-    const result = await addClass(classData);
-    return { success: true, ...result };
-  } catch (error) {
-    console.error("[main.js] Error in 'add-class' handler:", error);
-    return { success: false, error: error.message || "Failed to add class" };
-  }
-});
-
-ipcMain.handle("update-class", async (event, classData) => {
-  console.log("[main.js] IPC handler 'update-class' invoked.", classData);
-  try {
-    const result = await updateClass(classData);
-    return { success: true, ...result };
-  } catch (error) {
-    console.error("[main.js] Error in 'update-class' handler:", error);
-    return { success: false, error: error.message || "Failed to update class" };
-  }
-});
-
-ipcMain.handle("delete-class", async (event, id) => {
-  console.log("[main.js] IPC handler 'delete-class' invoked.", id);
-  try {
-    const result = await deleteClass(id);
-    return { success: true, class: result };
-  } catch (error) {
-    console.error("[main.js] Error in 'delete-class' handler:", error);
-    return { success: false, error: error.message };
   }
 });
 
@@ -494,41 +489,7 @@ ipcMain.handle("delete-teacher", async (event, id) => {
   }
 });
 
-ipcMain.handle("get-class-shifts", async () => {
-  try {
-    return await getClassShifts();
-  } catch (error) {
-    console.error("[main.js] Error in 'get-class-shifts' handler:", error);
-    return [];
-  }
-});
-ipcMain.handle("add-class-shift", async (event, shiftData) => {
-  try {
-    const result = await addClassShift(shiftData);
-    return { success: true, shift: result };
-  } catch (error) {
-    console.error("[main.js] Error in 'add-class-shift' handler:", error);
-    return { success: false, error: error.message };
-  }
-});
-ipcMain.handle("update-class-shift", async (event, shiftData) => {
-  try {
-    const result = await updateClassShift(shiftData);
-    return { success: true, shift: result };
-  } catch (error) {
-    console.error("[main.js] Error in 'update-class-shift' handler:", error);
-    return { success: false, error: error.message };
-  }
-});
-ipcMain.handle("delete-class-shift", async (event, id) => {
-  try {
-    const result = await deleteClassShift(id);
-    return { success: true, shift: result };
-  } catch (error) {
-    console.error("[main.js] Error in 'delete-class-shift' handler:", error);
-    return { success: false, error: error.message };
-  }
-});
+// Class shifts handlers removed - not needed
 
 // Transport IPC handlers
 ipcMain.handle("get-transport", async () => {
@@ -587,18 +548,24 @@ ipcMain.handle("get-fees", async (event, branchId, academicYearId = null) => {
 ipcMain.handle("get-next-receipt-number", async (event, paymentType) => {
   return new Promise((resolve) => {
     try {
-      const type = paymentType === 'cash' ? 'cash' : 'bank';
+      const type = paymentType === "cash" ? "cash" : "bank";
       getNextReceiptNumber(type, (err, next) => {
         if (err) {
           console.error("[main.js] Error in 'get-next-receipt-number':", err);
-          resolve({ success: false, error: err.message || 'Failed to get next receipt number' });
+          resolve({
+            success: false,
+            error: err.message || "Failed to get next receipt number",
+          });
         } else {
           resolve({ success: true, next });
         }
       });
     } catch (error) {
       console.error("[main.js] Exception in 'get-next-receipt-number':", error);
-      resolve({ success: false, error: error.message || 'Failed to get next receipt number' });
+      resolve({
+        success: false,
+        error: error.message || "Failed to get next receipt number",
+      });
     }
   });
 });
@@ -610,7 +577,11 @@ ipcMain.handle("add-fees", async (event, feesData) => {
         console.error("[main.js] Error in 'add-fees' handler:", err);
         resolve({ success: false, error: err.message });
       } else {
-        resolve({ success: true, id: result.id, receipt_number: result.receipt_number });
+        resolve({
+          success: true,
+          id: result.id,
+          receipt_number: result.receipt_number,
+        });
       }
     });
   });
@@ -642,18 +613,24 @@ ipcMain.handle("delete-fees", async (event, id) => {
   });
 });
 
-ipcMain.handle("get-students-for-fees", async (event, branchId, academicYearId = null) => {
-  return new Promise((resolve) => {
-    getStudentsForFees(branchId, academicYearId, (err, students) => {
-      if (err) {
-        console.error("[main.js] Error in 'get-students-for-fees' handler:", err);
-        resolve({ success: false, error: err.message });
-      } else {
-        resolve({ success: true, students });
-      }
+ipcMain.handle(
+  "get-students-for-fees",
+  async (event, branchId, academicYearId = null) => {
+    return new Promise((resolve) => {
+      getStudentsForFees(branchId, academicYearId, (err, students) => {
+        if (err) {
+          console.error(
+            "[main.js] Error in 'get-students-for-fees' handler:",
+            err
+          );
+          resolve({ success: false, error: err.message });
+        } else {
+          resolve({ success: true, students });
+        }
+      });
     });
-  });
-});
+  }
+);
 
 ipcMain.handle("get-fees-receipt", async (event, receiptNumber) => {
   return new Promise((resolve) => {

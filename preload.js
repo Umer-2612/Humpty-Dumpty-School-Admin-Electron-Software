@@ -13,15 +13,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   updateStudent: (studentData) =>
     ipcRenderer.invoke("update-student", studentData),
   deleteStudent: (id) => ipcRenderer.invoke("delete-student", id),
-  getNextRollNumber: (classId, shiftId, division) =>
-    ipcRenderer.invoke("get-next-roll-number", classId, shiftId, division),
+  getNextRollNumber: (classId, division) =>
+    ipcRenderer.invoke("get-next-roll-number", classId, division),
   getNextRollNumberByEntry: (classEntryId, division) =>
     ipcRenderer.invoke("get-next-roll-number-by-entry", classEntryId, division),
-  getClassesByBranch: (branch_id) =>
-    ipcRenderer.invoke("get-classes-by-branch", branch_id),
-  addClass: (classData) => ipcRenderer.invoke("add-class", classData),
-  updateClass: (classData) => ipcRenderer.invoke("update-class", classData),
-  deleteClass: (id) => ipcRenderer.invoke("delete-class", id),
   getSetting: (key) => ipcRenderer.invoke("get-setting", key),
   setSetting: (key, value) => ipcRenderer.invoke("set-setting", key, value),
   getTeachers: () => ipcRenderer.invoke("get-teachers"),
@@ -30,12 +25,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("update-teacher", teacherData),
   deleteTeacher: (id) => ipcRenderer.invoke("delete-teacher", id),
   getClasses: () => ipcRenderer.invoke("get-classes"),
-  getClassShifts: () => ipcRenderer.invoke("get-class-shifts"),
-  addClassShift: (shiftData) =>
-    ipcRenderer.invoke("add-class-shift", shiftData),
-  updateClassShift: (shiftData) =>
-    ipcRenderer.invoke("update-class-shift", shiftData),
-  deleteClassShift: (id) => ipcRenderer.invoke("delete-class-shift", id),
+  // Class shifts removed - return empty array for compatibility
+  getClassShifts: () => Promise.resolve([]),
   getTransport: () => ipcRenderer.invoke("get-transport"),
   addTransport: (transportData) =>
     ipcRenderer.invoke("add-transport", transportData),
@@ -57,13 +48,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getStudentTermSummary: (studentId, academicYearId = null) =>
     ipcRenderer.invoke("get-student-term-summary", studentId, academicYearId),
 
-  // Unified Class Entries APIs
-  listClassEntriesByBranch: (branch_id) =>
-    ipcRenderer.invoke("list-class-entries-by-branch", branch_id),
-  addClassEntry: (payload) => ipcRenderer.invoke("add-class-entry", payload),
+  // Classes APIs
+  listClassesByBranch: (branch_id) =>
+    ipcRenderer.invoke("list-classes-by-branch", branch_id),
+  addClassEntry: (payload) => ipcRenderer.invoke("add-class", payload),
   updateClassEntry: (payload) =>
-    ipcRenderer.invoke("update-class-entry", payload),
-  deleteClassEntry: (id) => ipcRenderer.invoke("delete-class-entry", id),
+    ipcRenderer.invoke("update-class", payload),
+  deleteClassEntry: (id) => ipcRenderer.invoke("delete-class", id),
 
   // Reports
   saveStudentReport: (html, defaultPath) =>

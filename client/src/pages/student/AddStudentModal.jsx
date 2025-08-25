@@ -24,11 +24,9 @@ const AddStudentModal = ({
     name: "",
     roll_number: "",
     class_id: "",
-    shift_id: "",
     parents_contact1: "",
     parents_contact2: "",
-    admission_date: "",
-    admission_end_date: "",
+    admission_date: new Date().toISOString().split("T")[0],
     gender: "",
     mother_name: "",
     father_name: "",
@@ -61,9 +59,6 @@ const AddStudentModal = ({
       if (!form.class_id) {
         newErrors.class_id = "Class is required";
       }
-
-      // shift_id is set via class entry selection; if missing, show error
-      if (!form.shift_id) newErrors.shift_id = "Shift is required";
     }
 
     // Step 1 validation
@@ -116,18 +111,34 @@ const AddStudentModal = ({
     setLoading(true);
     setError("");
     try {
-      const payload = { ...form, academic_year_id: selectedYear?.id || null };
+      // Find the selected class to get fee information
+      const selectedClass = classEntries.find((c) => c.id === form.class_id);
+
+      // Calculate fees
+      const term1 = Number(selectedClass?.term1_fee) || 0;
+      const term2 = Number(selectedClass?.term2_fee) || 0;
+      const books = Number(selectedClass?.books_charge) || 0;
+      const total_fees = term1 + term2 + books;
+      const scholarship = Number(form.fee_scholarship) || 0;
+      const pending_fees = Math.max(0, total_fees - scholarship);
+      const fee_breakdown = { term1, term2, books };
+
+      const payload = {
+        ...form,
+        academic_year_id: selectedYear?.id || null,
+        total_fees,
+        pending_fees,
+        fee_breakdown,
+      };
       const res = await window.electronAPI.addStudent(payload);
       if (res.success) {
         setForm({
           name: "",
           roll_number: "",
           class_id: "",
-          shift_id: "",
           parents_contact1: "",
           parents_contact2: "",
-          admission_date: "",
-          admission_end_date: "",
+          admission_date: new Date().toISOString().split("T")[0],
           gender: "",
           mother_name: "",
           father_name: "",
@@ -229,4 +240,3 @@ const AddStudentModal = ({
 };
 
 export default AddStudentModal;
-

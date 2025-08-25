@@ -330,7 +330,9 @@ export default function ViewStudentModal({
                     label="Class"
                     value={
                       s.class_name
-                        ? `${s.class_name}${s.division ? ` (${s.division})` : ""}`
+                        ? `${s.class_name}${
+                            s.division ? ` (${s.division})` : ""
+                          }`
                         : "-"
                     }
                   />
@@ -353,9 +355,6 @@ export default function ViewStudentModal({
                     label="Admission"
                     value={fmtDate(s.admission_date)}
                   />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <InfoRow label="Ends" value={fmtDate(s.admission_end_date)} />
                 </Box>
               </Stack>
             </Stack>

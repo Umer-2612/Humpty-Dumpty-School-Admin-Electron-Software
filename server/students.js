@@ -17,7 +17,6 @@ function getStudents(branch_id, academicYearId = null) {
         s.academic_year_id,
         s.total_fees,
         s.pending_fees,
-        s.shift_id,
         s.division,
         s.parents_contact1,
         s.parents_contact2,
@@ -31,6 +30,7 @@ function getStudents(branch_id, academicYearId = null) {
         s.address,
         s.created_at,
         c.name as class_name,
+        c.shift_name,
         b.name as branch_name,
         b.id as branch_id
       FROM students s
@@ -63,7 +63,7 @@ function getStudents(branch_id, academicYearId = null) {
   });
 }
 
-// Get a single student by ID (includes class/branch info and shift_id)
+// Get a single student by ID (includes class/branch info)
 function getStudentById(id) {
   console.log("[server/students.js] getStudentById() called with id=", id);
   return new Promise((resolve, reject) => {
@@ -77,7 +77,6 @@ function getStudentById(id) {
         s.academic_year_id,
         s.total_fees,
         s.pending_fees,
-        s.shift_id,
         s.division,
         s.parents_contact1,
         s.parents_contact2,
@@ -91,6 +90,7 @@ function getStudentById(id) {
         s.address,
         s.created_at,
         c.name as class_name,
+        c.shift_name,
         b.name as branch_name,
         b.id as branch_id
       FROM students s
@@ -134,29 +134,26 @@ function resolveAcademicYearId(preferredId) {
   });
 }
 
-// Get the next roll number for a class+shift+division (max existing + 1), scoped by academic year
-function getNextRollNumber(class_id, shift_id, division, academicYearId = null) {
+// Get the next roll number for a class+division (max existing + 1), scoped by academic year
+function getNextRollNumber(class_id, division, academicYearId = null) {
   console.log(
     "[server/students.js] getNextRollNumber() called with class_id=",
     class_id,
-    "shift_id=",
-    shift_id,
     "division=",
     division,
     "academicYearId=",
     academicYearId
   );
   return new Promise(async (resolve, reject) => {
-    if (!class_id || !shift_id || !division) {
+    if (!class_id || !division) {
       return resolve(1); // default to 1 if inputs not selected yet
     }
 
     try {
       const yearId = await resolveAcademicYearId(academicYearId);
 
-      const baseSql =
-        `SELECT MAX(CAST(roll_number AS INTEGER)) AS max_roll FROM students WHERE class_id = ? AND shift_id = ? AND division = ?`;
-      const params = [class_id, shift_id, division];
+      const baseSql = `SELECT MAX(CAST(roll_number AS INTEGER)) AS max_roll FROM students WHERE class_id = ? AND division = ?`;
+      const params = [class_id, division];
       const sql = yearId ? `${baseSql} AND academic_year_id = ?` : baseSql;
       if (yearId) params.push(yearId);
 
@@ -168,9 +165,12 @@ function getNextRollNumber(class_id, shift_id, division, academicYearId = null) 
           );
           reject(err);
         } else {
-          const next = (row && row.max_roll ? parseInt(row.max_roll, 10) : 0) + 1;
+          const next =
+            (row && row.max_roll ? parseInt(row.max_roll, 10) : 0) + 1;
           console.log(
-            `[server/students.js] Next roll number for class ${class_id}, shift ${shift_id}, division ${division} (year ${yearId || 'any'}) =`,
+            `[server/students.js] Next roll number for class ${class_id}, division ${division} (year ${
+              yearId || "any"
+            }) =`,
             next
           );
           resolve(next);
@@ -201,6 +201,7 @@ function searchStudents(branch_id, query, academicYearId = null) {
         s.class_id,
         s.academic_year_id,
         c.name as class_name,
+        c.shift_name,
         b.name as branch_name,
         b.id as branch_id
       FROM students s
@@ -239,7 +240,6 @@ function addStudent(studentData) {
       name,
       roll_number,
       class_id,
-      shift_id,
       division,
       academic_year_id,
       parents_contact1,
@@ -253,10 +253,10 @@ function addStudent(studentData) {
       religion,
       address,
     } = studentData;
-    // Check for duplicate roll_number within the same class, shift, and division
+    // Check for duplicate roll_number within the same class and division
     db.get(
-      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ? AND division = ?`,
-      [roll_number, class_id, shift_id, division || null],
+      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND division = ?`,
+      [roll_number, class_id, division || null],
       (err, row) => {
         if (err) {
           console.error(
@@ -267,119 +267,85 @@ function addStudent(studentData) {
         } else if (row) {
           reject(
             new Error(
-              "Roll number already exists in this class, shift, and division. Please use a unique roll number for this class/shift/division."
+              "Roll number already exists in this class and division. Please use a unique roll number for this class/division."
             )
           );
         } else {
-          // Fetch class fees to initialize total_fees and pending_fees
+          // Use fee data sent from frontend
+          const {
+            total_fees = 0,
+            pending_fees = 0,
+            fee_breakdown = null
+          } = studentData;
+
+          // Determine academic year id (use provided or active year)
           db.get(
-            `SELECT fees FROM classes WHERE id = ?`,
-            [class_id],
-            (classErr, classRow) => {
-              if (classErr) {
-                console.error(
-                  "[server/students.js] Error fetching class fees:",
-                  classErr
-                );
-                reject(classErr);
-                return;
-              }
-              let total_fees_calc = 0;
-              let fee_breakdown_json = null;
-              try {
-                if (classRow && classRow.fees) {
-                  const feesObj = JSON.parse(classRow.fees);
-                  const term1 = Number(feesObj.term1) || 0;
-                  const term2 = Number(feesObj.term2) || 0;
-                  const books =
-                    Number(feesObj.books ?? feesObj.books_charge) || 0;
-                  total_fees_calc = term1 + term2 + books;
-                  fee_breakdown_json = JSON.stringify({ term1, term2, books });
-                }
-              } catch (e) {
+            `SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1`,
+            [],
+            (yearErr, yearRow) => {
+              if (yearErr) {
                 console.warn(
-                  "[server/students.js] Failed parsing class fees JSON, defaulting total_fees to 0"
+                  "[server/students.js] Failed to get active academic year, proceeding with null",
+                  yearErr
                 );
               }
+              const yearIdToUse =
+                academic_year_id || (yearRow && yearRow.id) || null;
 
-              // Calculate pending fees: total fees minus scholarship amount
-              const scholarshipAmount = parseFloat(fee_scholarship) || 0;
-              const pending_fees_init = Math.max(
-                0,
-                total_fees_calc - scholarshipAmount
-              );
+              const fee_breakdown_json = typeof fee_breakdown === 'string' 
+                ? fee_breakdown 
+                : JSON.stringify(fee_breakdown);
 
-              console.log(
-                `[server/students.js] Fee calculation: total=${total_fees_calc}, scholarship=${scholarshipAmount}, pending=${pending_fees_init}`
-              );
-
-              // Determine academic year id (use provided or active year)
-              db.get(
-                `SELECT id FROM academic_years WHERE is_active = 1 LIMIT 1`,
-                [],
-                (yearErr, yearRow) => {
-                  if (yearErr) {
-                    console.warn(
-                      "[server/students.js] Failed to get active academic year, proceeding with null",
-                      yearErr
+              db.run(
+                `
+                INSERT INTO students (
+                  name, roll_number, class_id, division, academic_year_id, parents_contact1, parents_contact2,
+                  admission_date, gender, mother_name, father_name,
+                  fee_scholarship, birth_place, religion, address, total_fees, pending_fees, fee_breakdown
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `,
+                [
+                  name,
+                  roll_number,
+                  class_id,
+                  division || null,
+                  yearIdToUse,
+                  parents_contact1,
+                  parents_contact2,
+                  admission_date,
+                  gender,
+                  mother_name,
+                  father_name,
+                  fee_scholarship,
+                  birth_place,
+                  religion,
+                  address,
+                  total_fees,
+                  pending_fees,
+                  fee_breakdown_json,
+                ],
+                function (err) {
+                  if (err) {
+                    console.error(
+                      "[server/students.js] Error adding student:",
+                      err
                     );
+                    reject(err);
+                  } else {
+                    console.log(
+                      "[server/students.js] Student added with ID:",
+                      this.lastID
+                    );
+                    resolve({
+                      id: this.lastID,
+                      ...studentData,
+                      academic_year_id: yearIdToUse,
+                      total_fees,
+                      pending_fees,
+                      fee_breakdown: fee_breakdown_json,
+                    });
                   }
-                  const yearIdToUse =
-                    academic_year_id || (yearRow && yearRow.id) || null;
-
-                  db.run(
-                    `
-                    INSERT INTO students (
-                      name, roll_number, class_id, shift_id, division, academic_year_id, parents_contact1, parents_contact2,
-                      admission_date, gender, mother_name, father_name,
-                      fee_scholarship, birth_place, religion, address, total_fees, pending_fees, fee_breakdown
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                  `,
-                    [
-                      name,
-                      roll_number,
-                      class_id,
-                      shift_id,
-                      division || null,
-                      yearIdToUse,
-                      parents_contact1,
-                      parents_contact2,
-                      admission_date,
-                      gender,
-                      mother_name,
-                      father_name,
-                      fee_scholarship,
-                      birth_place,
-                      religion,
-                      address,
-                      total_fees_calc,
-                      pending_fees_init,
-                      fee_breakdown_json,
-                    ],
-                    function (err) {
-                      if (err) {
-                        console.error(
-                          "[server/students.js] Error adding student:",
-                          err
-                        );
-                        reject(err);
-                      } else {
-                        console.log(
-                          "[server/students.js] Student added with ID:",
-                          this.lastID
-                        );
-                        resolve({
-                          id: this.lastID,
-                          ...studentData,
-                          academic_year_id: yearIdToUse,
-                          total_fees: total_fees_calc,
-                          pending_fees: pending_fees_init,
-                          fee_breakdown: fee_breakdown_json,
-                        });
-                      }
-                    }
-                  );
                 }
               );
             }
@@ -427,7 +393,6 @@ function updateStudent(studentData) {
       name,
       roll_number,
       class_id,
-      shift_id,
       division,
       parents_contact1,
       parents_contact2,
@@ -441,10 +406,10 @@ function updateStudent(studentData) {
       address,
     } = studentData;
 
-    // Check for duplicate roll_number within the same class, shift and division (excluding current student)
+    // Check for duplicate roll_number within the same class and division (excluding current student)
     db.get(
-      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND shift_id = ? AND division = ? AND id != ?`,
-      [roll_number, class_id, shift_id, division || null, id],
+      `SELECT id FROM students WHERE roll_number = ? AND class_id = ? AND division = ? AND id != ?`,
+      [roll_number, class_id, division || null, id],
       (err, row) => {
         if (err) {
           console.error(
@@ -455,111 +420,83 @@ function updateStudent(studentData) {
         } else if (row) {
           reject(
             new Error(
-              "Roll number already exists in this class/shift/division. Please use a unique roll number for this combination."
+              "Roll number already exists in this class/division. Please use a unique roll number for this combination."
             )
           );
         } else {
-          // Recompute fee_breakdown, total_fees, and pending_fees from class fees + scholarship
-          db.get(
-            `SELECT fees FROM classes WHERE id = ?`,
-            [class_id],
-            (cErr, cRow) => {
-              if (cErr) {
-                console.error(
-                  "[server/students.js] Error fetching class fees for update:",
-                  cErr
-                );
-                return reject(cErr);
-              }
-              let fee_breakdown_json = null;
-              let total_fees_calc = 0;
-              try {
-                if (cRow && cRow.fees) {
-                  const feesObj = JSON.parse(cRow.fees);
-                  const term1 = Number(feesObj.term1) || 0;
-                  const term2 = Number(feesObj.term2) || 0;
-                  const books =
-                    Number(feesObj.books ?? feesObj.books_charge) || 0;
-                  total_fees_calc = term1 + term2 + books;
-                  fee_breakdown_json = JSON.stringify({ term1, term2, books });
-                }
-              } catch (e) {
-                console.warn(
-                  "[server/students.js] Failed parsing class fees JSON on update; keeping totals 0"
-                );
-              }
-              const scholarshipAmount = parseFloat(fee_scholarship) || 0;
-              const pending_fees_calc = Math.max(
-                0,
-                total_fees_calc - scholarshipAmount
-              );
+          // Use fee data sent from frontend
+          const {
+            total_fees = 0,
+            pending_fees = 0,
+            fee_breakdown = null
+          } = studentData;
 
-              db.run(
-                `
-              UPDATE students SET 
-                name = ?, 
-                roll_number = ?, 
-                class_id = ?, 
-                shift_id = ?,
-                division = ?,
-                parents_contact1 = ?,
-                parents_contact2 = ?,
-                admission_date = ?,
-                gender = ?,
-                mother_name = ?,
-                father_name = ?,
-                fee_scholarship = ?,
-                birth_place = ?,
-                religion = ?,
-                address = ?,
-                total_fees = ?,
-                pending_fees = ?,
-                fee_breakdown = ?
-              WHERE id = ?
-            `,
-                [
-                  name,
-                  roll_number,
-                  class_id,
-                  shift_id,
-                  division || null,
-                  parents_contact1,
-                  parents_contact2,
-                  admission_date,
-                  gender,
-                  mother_name,
-                  father_name,
-                  fee_scholarship,
-                  birth_place,
-                  religion,
-                  address,
-                  total_fees_calc,
-                  pending_fees_calc,
-                  fee_breakdown_json,
+          const fee_breakdown_json = typeof fee_breakdown === 'string' 
+            ? fee_breakdown 
+            : JSON.stringify(fee_breakdown);
+
+          db.run(
+            `
+            UPDATE students SET 
+              name = ?, 
+              roll_number = ?, 
+              class_id = ?, 
+              division = ?,
+              parents_contact1 = ?,
+              parents_contact2 = ?,
+              admission_date = ?,
+              gender = ?,
+              mother_name = ?,
+              father_name = ?,
+              fee_scholarship = ?,
+              birth_place = ?,
+              religion = ?,
+              address = ?,
+              total_fees = ?,
+              pending_fees = ?,
+              fee_breakdown = ?
+            WHERE id = ?
+          `,
+            [
+              name,
+              roll_number,
+              class_id,
+              division || null,
+              parents_contact1,
+              parents_contact2,
+              admission_date,
+              gender,
+              mother_name,
+              father_name,
+              fee_scholarship,
+              birth_place,
+              religion,
+              address,
+              total_fees,
+              pending_fees,
+              fee_breakdown_json,
+              id,
+            ],
+            function (err) {
+              if (err) {
+                console.error(
+                  "[server/students.js] Error updating student:",
+                  err
+                );
+                reject(err);
+              } else {
+                console.log(
+                  "[server/students.js] Student updated with ID:",
+                  id
+                );
+                resolve({
                   id,
-                ],
-                function (err) {
-                  if (err) {
-                    console.error(
-                      "[server/students.js] Error updating student:",
-                      err
-                    );
-                    reject(err);
-                  } else {
-                    console.log(
-                      "[server/students.js] Student updated with ID:",
-                      id
-                    );
-                    resolve({
-                      id,
-                      ...studentData,
-                      total_fees: total_fees_calc,
-                      pending_fees: pending_fees_calc,
-                      fee_breakdown: fee_breakdown_json,
-                    });
-                  }
-                }
-              );
+                  ...studentData,
+                  total_fees,
+                  pending_fees,
+                  fee_breakdown: fee_breakdown_json,
+                });
+              }
             }
           );
         }
@@ -629,7 +566,11 @@ function deleteStudent(id) {
 }
 
 // Unified helper: get next roll using class_entry_id + division
-function getNextRollNumberByEntry(class_entry_id, division, academicYearId = null) {
+function getNextRollNumberByEntry(
+  class_entry_id,
+  division,
+  academicYearId = null
+) {
   console.log(
     "[server/students.js] getNextRollNumberByEntry() called with class_entry_id=",
     class_entry_id,
@@ -643,7 +584,7 @@ function getNextRollNumberByEntry(class_entry_id, division, academicYearId = nul
     // determine academic year to scope under
     resolveAcademicYearId(academicYearId).then((yearId) => {
       db.get(
-        `SELECT class_id, shift_id FROM class_entries WHERE id = ?`,
+        `SELECT id as class_id, NULL as shift_id FROM classes WHERE id = ?`,
         [class_entry_id],
         (err, row) => {
           if (err) {
@@ -654,12 +595,11 @@ function getNextRollNumberByEntry(class_entry_id, division, academicYearId = nul
             return reject(err);
           }
           const class_id = row?.class_id || null;
-          const shift_id = row?.shift_id || null;
-          if (!class_id || !shift_id) {
+          if (!class_id) {
             // Fallback default when mapping missing
             return resolve(1);
           }
-          getNextRollNumber(class_id, shift_id, division, yearId)
+          getNextRollNumber(class_id, division, yearId)
             .then(resolve)
             .catch(reject);
         }
