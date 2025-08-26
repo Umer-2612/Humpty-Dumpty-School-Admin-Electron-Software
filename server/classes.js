@@ -19,7 +19,7 @@ function toRow(r) {
   const term2_fee = Number(r.term2_fee) || 0;
   const books_charge = Number(r.books_charge) || 0;
   const totalFees = term1_fee + term2_fee + books_charge;
-  
+
   return {
     id: r.id,
     branch_id: r.branch_id,

@@ -58,6 +58,7 @@ const Students = () => {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportClassId, setReportClassId] = useState("");
+  const [reportDivision, setReportDivision] = useState("");
   const [reportGender, setReportGender] = useState("");
 
   // Extract classes from classEntries for reports
@@ -80,12 +81,34 @@ const Students = () => {
     srNo: index + 1,
   }));
 
+  // Get available divisions for selected class
+  const availableDivisions = useMemo(() => {
+    if (!reportClassId) return [];
+    const selectedClass = classEntries.find(
+      (entry) => String(entry.class_id || entry.id) === String(reportClassId)
+    );
+    const divisionCount =
+      selectedClass?.division_count || selectedClass?.num_divisions || 0;
+    if (divisionCount > 0) {
+      return Array.from(
+        { length: divisionCount },
+        (_, i) => String.fromCharCode(65 + i) // A, B, C, etc.
+      );
+    }
+    return [];
+  }, [reportClassId, classEntries]);
+
   // Filtered rows for Report dialog
   const reportFiltered = useMemo(() => {
     let list = students;
     if (reportClassId) {
       list = list.filter(
         (s) => String(s.class_id || s.classId) === String(reportClassId)
+      );
+    }
+    if (reportDivision) {
+      list = list.filter(
+        (s) => String(s.division || "") === String(reportDivision)
       );
     }
     if (reportGender) {
@@ -101,7 +124,7 @@ const Students = () => {
         : item.class_name || "";
       return { ...item, srNo: index + 1, class_display };
     });
-  }, [students, reportClassId, reportGender]);
+  }, [students, reportClassId, reportDivision, reportGender]);
 
   // Labels for report header summary
   const reportClassLabel = useMemo(() => {
@@ -111,6 +134,11 @@ const Students = () => {
     );
     return c?.display_name || String(reportClassId);
   }, [reportClassId, classes]);
+
+  const reportDivisionLabel = useMemo(() => {
+    if (!reportDivision) return "All";
+    return String(reportDivision);
+  }, [reportDivision]);
 
   const reportGenderLabel = useMemo(() => {
     if (!reportGender) return "All";
@@ -242,7 +270,6 @@ const Students = () => {
           <div class="subject">Student Report</div>
           <div class="meta">${reportGeneratedAt} • Total: ${reportCount}</div>
           <div class="chips">
-            <span class="chip">Branch: ${branchLabel}</span>
             <span class="chip">Year: ${yearLabel}</span>
             <span class="chip">Class: ${reportClassLabel}</span>
             <span class="chip">Gender: ${reportGenderLabel}</span>
@@ -945,6 +972,7 @@ const Students = () => {
             <Chip size="small" label={`Branch: ${branchLabel}`} />
             <Chip size="small" label={`Year: ${yearLabel}`} />
             <Chip size="small" label={`Class: ${reportClassLabel}`} />
+            <Chip size="small" label={`Division: ${reportDivisionLabel}`} />
             <Chip size="small" label={`Gender: ${reportGenderLabel}`} />
           </Stack>
           <Divider sx={{ mb: 2 }} />
@@ -955,12 +983,30 @@ const Students = () => {
             sx={{ mb: 2 }}
           >
             <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="report-class-label">Class</InputLabel>
+              <InputLabel
+                id="report-class-label"
+                shrink={reportClassId === "" || reportClassId !== ""}
+              >
+                Class
+              </InputLabel>
               <Select
                 labelId="report-class-label"
                 label="Class"
                 value={reportClassId}
-                onChange={(e) => setReportClassId(e.target.value)}
+                onChange={(e) => {
+                  setReportClassId(e.target.value);
+                  setReportDivision(""); // Reset division when class changes
+                }}
+                displayEmpty
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All";
+                  }
+                  const selectedClass = (classes || []).find(
+                    (c) => String(c.id) === String(selected)
+                  );
+                  return selectedClass?.display_name || selected;
+                }}
               >
                 <MenuItem value="">
                   <em>All</em>
@@ -973,13 +1019,57 @@ const Students = () => {
               </Select>
             </FormControl>
 
-            <FormControl size="small" sx={{ minWidth: 160 }}>
-              <InputLabel id="report-gender-label">Gender</InputLabel>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel
+                id="report-division-label"
+                shrink={reportDivision === "" || reportDivision !== ""}
+              >
+                Division
+              </InputLabel>
+              <Select
+                labelId="report-division-label"
+                label="Division"
+                value={reportDivision}
+                onChange={(e) => setReportDivision(e.target.value)}
+                disabled={!reportClassId || availableDivisions.length === 0}
+                displayEmpty
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All";
+                  }
+                  return selected;
+                }}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {availableDivisions.map((div) => (
+                  <MenuItem key={div} value={div}>
+                    {div}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel
+                id="report-gender-label"
+                shrink={reportGender === "" || reportGender !== ""}
+              >
+                Gender
+              </InputLabel>
               <Select
                 labelId="report-gender-label"
                 label="Gender"
                 value={reportGender}
                 onChange={(e) => setReportGender(e.target.value)}
+                displayEmpty
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All";
+                  }
+                  return selected.charAt(0).toUpperCase() + selected.slice(1);
+                }}
               >
                 <MenuItem value="">
                   <em>All</em>
@@ -995,6 +1085,7 @@ const Students = () => {
               color="inherit"
               onClick={() => {
                 setReportClassId("");
+                setReportDivision("");
                 setReportGender("");
               }}
               sx={{ ml: "auto" }}

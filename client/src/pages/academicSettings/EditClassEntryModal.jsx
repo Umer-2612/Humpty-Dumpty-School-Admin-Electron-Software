@@ -104,8 +104,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
             </Typography>
           </Box>
           <Divider />
-          <Box component="form" id="edit-class-form" onSubmit={handleSubmit} sx={{ p: 3, pt: 2 }}>
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          <Box component="form" id="edit-class-form" onSubmit={handleSubmit} sx={{ p: 2 }}>
+            <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Class Name"
@@ -113,6 +113,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   onChange={(e) => setForm((p) => ({ ...p, class_name: e.target.value }))}
                   fullWidth
                   required
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -130,6 +132,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                     }));
                   }}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 >
                   <MenuItem value="Morning">Morning</MenuItem>
                   <MenuItem value="Afternoon">Afternoon</MenuItem>
@@ -143,6 +147,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
                   placeholder="HH:MM"
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -152,6 +158,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
                   placeholder="HH:MM"
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
 
@@ -167,6 +175,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                     }))
                   }
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -176,6 +186,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   value={form.books_charge}
                   onChange={(e) => setForm((p) => ({ ...p, books_charge: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
 
@@ -186,6 +198,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   value={form.term1_fee}
                   onChange={(e) => setForm((p) => ({ ...p, term1_fee: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -195,6 +209,8 @@ const EditClassEntryModal = ({ open, onClose, entry, onSaved, loading: parentLoa
                   value={form.term2_fee}
                   onChange={(e) => setForm((p) => ({ ...p, term2_fee: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
             </Grid>

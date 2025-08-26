@@ -13,7 +13,7 @@ let getStudents,
   deleteStudent,
   getStudentById;
 let getSetting, setSetting;
-let getTeachers, addTeacher, updateTeacher, deleteTeacher;
+let getStaff, addStaff, updateStaff, deleteStaff, getStaffById;
 let getTransport, addTransport, updateTransport, deleteTransport;
 let getFees,
   addFees,
@@ -146,7 +146,7 @@ function createWindow() {
       return [];
     }
   });
-  
+
   ipcMain.handle("add-academic-year", async (event, payload) => {
     try {
       return await addAcademicYear(payload);
@@ -155,7 +155,7 @@ function createWindow() {
       return { success: false, error: error.message };
     }
   });
-  
+
   ipcMain.handle("update-academic-year", async (event, payload) => {
     try {
       return await updateAcademicYear(payload);
@@ -164,7 +164,7 @@ function createWindow() {
       return { success: false, error: error.message };
     }
   });
-  
+
   ipcMain.handle("set-active-academic-year", async (event, id) => {
     try {
       return await setActiveAcademicYear(id);
@@ -173,7 +173,7 @@ function createWindow() {
       return { success: false, error: error.message };
     }
   });
-  
+
   ipcMain.handle("get-active-academic-year", async () => {
     try {
       return await getActiveAcademicYear();
@@ -212,11 +212,12 @@ app.whenReady().then(() => {
     } = require("./server/classes"));
     ({ getSetting, setSetting } = require("./server/settings"));
     ({
-      getTeachers,
-      addTeacher,
-      updateTeacher,
-      deleteTeacher,
-    } = require("./server/teachers"));
+      getStaff,
+      addStaff,
+      updateStaff,
+      deleteStaff,
+      getStaffById,
+    } = require("./server/staff"));
     ({
       getTransport,
       addTransport,
@@ -280,7 +281,6 @@ ipcMain.handle("save-student-report", async (event, payload) => {
     return { success: false, error: error.message };
   }
 });
-
 
 // IPC handlers
 ipcMain.handle("get-branches", async () => {
@@ -453,41 +453,56 @@ ipcMain.handle("set-setting", async (event, key, value) => {
   }
 });
 
-ipcMain.handle("get-teachers", async () => {
+
+// Staff API handlers
+ipcMain.handle("get-staff", async () => {
   try {
-    return await getTeachers();
+    return await getStaff();
   } catch (error) {
-    console.error("[main.js] Error in 'get-teachers' handler:", error);
+    console.error("[main.js] Error in 'get-staff' handler:", error);
     return [];
   }
 });
-ipcMain.handle("add-teacher", async (event, teacherData) => {
+
+ipcMain.handle("get-staff-by-id", async (event, id) => {
   try {
-    const result = await addTeacher(teacherData);
-    return { success: true, teacher: result };
+    return await getStaffById(id);
   } catch (error) {
-    console.error("[main.js] Error in 'add-teacher' handler:", error);
+    console.error("[main.js] Error in 'get-staff-by-id' handler:", error);
+    return null;
+  }
+});
+
+ipcMain.handle("add-staff", async (event, staffData) => {
+  try {
+    const result = await addStaff(staffData);
+    return { success: true, staff: result };
+  } catch (error) {
+    console.error("[main.js] Error in 'add-staff' handler:", error);
     return { success: false, error: error.message };
   }
 });
-ipcMain.handle("update-teacher", async (event, teacherData) => {
+
+ipcMain.handle("update-staff", async (event, staffData) => {
   try {
-    const result = await updateTeacher(teacherData);
-    return { success: true, teacher: result };
+    const result = await updateStaff(staffData);
+    return { success: true, staff: result };
   } catch (error) {
-    console.error("[main.js] Error in 'update-teacher' handler:", error);
+    console.error("[main.js] Error in 'update-staff' handler:", error);
     return { success: false, error: error.message };
   }
 });
-ipcMain.handle("delete-teacher", async (event, id) => {
+
+ipcMain.handle("delete-staff", async (event, id) => {
   try {
-    const result = await deleteTeacher(id);
-    return { success: true, teacher: result };
+    await deleteStaff(id);
+    return { success: true };
   } catch (error) {
-    console.error("[main.js] Error in 'delete-teacher' handler:", error);
+    console.error("[main.js] Error in 'delete-staff' handler:", error);
     return { success: false, error: error.message };
   }
 });
+
 
 // Class shifts handlers removed - not needed
 

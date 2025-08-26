@@ -96,8 +96,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
             </Typography>
           </Box>
           <Divider />
-          <Box component="form" id="add-class-form" onSubmit={handleSubmit} sx={{ p: 3, pt: 2 }}>
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+          <Box component="form" id="add-class-form" onSubmit={handleSubmit} sx={{ p: 2 }}>
+            <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
               <Grid item xs={12} sm={6}>
                 <TextField
                   label="Class Name"
@@ -105,6 +105,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   onChange={(e) => setForm((p) => ({ ...p, class_name: e.target.value }))}
                   fullWidth
                   required
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -122,6 +124,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                     }));
                   }}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 >
                   <MenuItem value="Morning">Morning</MenuItem>
                   <MenuItem value="Afternoon">Afternoon</MenuItem>
@@ -135,6 +139,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
                   placeholder="HH:MM"
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -144,6 +150,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
                   placeholder="HH:MM"
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
 
@@ -159,6 +167,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                     }))
                   }
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -168,6 +178,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   value={form.books_charge}
                   onChange={(e) => setForm((p) => ({ ...p, books_charge: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
 
@@ -178,6 +190,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   value={form.term1_fee}
                   onChange={(e) => setForm((p) => ({ ...p, term1_fee: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -187,6 +201,8 @@ const AddClassEntryModal = ({ open, onClose, branchId, onSuccess, setError, setL
                   value={form.term2_fee}
                   onChange={(e) => setForm((p) => ({ ...p, term2_fee: e.target.value }))}
                   fullWidth
+                  size="small"
+                  sx={{ '& .MuiInputBase-root': { height: 40 } }}
                 />
               </Grid>
             </Grid>

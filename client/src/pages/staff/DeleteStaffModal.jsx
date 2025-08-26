@@ -1,5 +1,4 @@
-import React from "react";
-import Modal from "../../component/Modal";
+import React, { useState } from "react";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -7,32 +6,41 @@ import Divider from "@mui/material/Divider";
 import Button from "@mui/material/Button";
 import Slide from "@mui/material/Slide";
 import { teal } from "@mui/material/colors";
+import PersonIcon from "@mui/icons-material/Person";
+import Modal from "../../component/Modal";
 
-const DeleteTeacherModal = ({
+const DeleteStaffModal = ({
   open,
   onClose,
-  teacher,
+  staff,
   onSuccess,
-  loading,
   setError,
   setLoading,
 }) => {
-  const handleDeleteTeacher = async () => {
+  const [loading, setLocalLoading] = useState(false);
+  
+  const handleDeleteStaff = async () => {
+    if (!staff?.id) return;
+
+    setLocalLoading(true);
     setLoading(true);
     setError("");
     try {
-      const res = await window.electronAPI.deleteTeacher(teacher.id);
+      const res = await window.electronAPI.deleteStaff(staff.id);
       if (res.success) {
         onSuccess();
       } else {
-        setError(res.error || "Failed to delete teacher");
+        setError(res.error || "Failed to delete staff");
       }
     } catch (err) {
-      setError("Failed to delete teacher", err);
+      setError("Failed to delete staff: " + err.message);
     } finally {
+      setLocalLoading(false);
       setLoading(false);
     }
   };
+
+  if (!staff) return null;
 
   return (
     <Modal open={open} onClose={onClose}>
@@ -53,19 +61,22 @@ const DeleteTeacherModal = ({
               borderTopLeftRadius: 12,
               borderTopRightRadius: 12,
               p: 2,
+              display: "flex",
+              alignItems: "center",
             }}
           >
+            <PersonIcon sx={{ color: "#fff", mr: 1 }} />
             <Typography variant="h6" sx={{ color: "#fff", fontWeight: 700 }}>
-              Delete Teacher
+              Delete Staff
             </Typography>
           </Box>
           <Divider />
           <Box sx={{ p: 3 }}>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              Are you sure you want to delete this teacher?
+              Are you sure you want to delete this staff member?
             </Typography>
             <Typography variant="subtitle2" color="text.secondary">
-              {teacher?.name}
+              {staff?.name}
             </Typography>
           </Box>
           <Divider />
@@ -75,15 +86,13 @@ const DeleteTeacherModal = ({
               display: "flex",
               justifyContent: "flex-end",
               bgcolor: "#f8fafc",
-              borderBottomLeftRadius: 12,
-              borderBottomRightRadius: 12,
             }}
           >
             <Button onClick={onClose} disabled={loading} sx={{ mr: 1 }}>
               Cancel
             </Button>
             <Button
-              onClick={handleDeleteTeacher}
+              onClick={handleDeleteStaff}
               variant="contained"
               color="error"
               disabled={loading}
@@ -97,4 +106,4 @@ const DeleteTeacherModal = ({
   );
 };
 
-export default DeleteTeacherModal;
+export default DeleteStaffModal;

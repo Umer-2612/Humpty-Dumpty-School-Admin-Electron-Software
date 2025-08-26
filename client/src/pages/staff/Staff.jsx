@@ -21,9 +21,9 @@ import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
-import AddTeacherModal from "./AddTeacherModal";
-import EditTeacherModal from "./EditTeacherModal";
-import DeleteTeacherModal from "./DeleteTeacherModal";
+import AddStaffModal from "./AddStaffModal";
+import EditStaffModal from "./EditStaffModal";
+import DeleteStaffModal from "./DeleteStaffModal";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider.jsx";
 
@@ -32,7 +32,7 @@ const SETTINGS_KEY = "staffTableSettings";
 const Staff = () => {
   const { selected: activeBranch } = useBranch() || {};
   const { selected: selectedYear } = useYear() || {};
-  const [teachers, setTeachers] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [classes, setClasses] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [classEntries, setClassEntries] = useState([]);
@@ -44,22 +44,22 @@ const Staff = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState(null);
-  const [deletingTeacher, setDeletingTeacher] = useState(null);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [deletingStaff, setDeletingStaff] = useState(null);
 
   // Report state
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTeacherId, setReportTeacherId] = useState("");
   const [students, setStudents] = useState([]);
 
-  // Add serial numbers to teachers data
-  const teachersWithSrNo = teachers.map((item, index) => ({
+  // Add serial numbers to staff data
+  const staffWithSrNo = staff.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
 
   const calcMinWidth = (title) =>
-    Math.max(80, 9 * String(title || "").length + 24);
+    Math.max(100, 10 * String(title || "").length + 40);
 
   const columns = [
     {
@@ -81,83 +81,122 @@ const Staff = () => {
         <Box sx={{ display: "flex", alignItems: "center" }}>
           <PersonIcon sx={{ mr: 1, color: teal[700] }} />
           <Tooltip title={params.value}>
-            <span>{params.value}</span>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+            >
+              {params.value}
+            </span>
           </Tooltip>
         </Box>
       ),
     },
     {
-      field: "shift_names",
-      headerName: "Shifts",
-      width: 220,
-      minWidth: calcMinWidth("Shifts"),
-      renderCell: (params) => (
-        <Tooltip
-          title={
-            Array.isArray(params.row.shift_names)
-              ? params.row.shift_names.join(", ")
-              : "-"
-          }
-        >
-          <Box sx={{ width: "100%", overflow: "hidden" }}>
+      field: "staff_type",
+      headerName: "Type",
+      width: 120,
+      minWidth: calcMinWidth("Type"),
+      renderCell: (params) => {
+        const type = params.value;
+        const displayText = type === "teacher" ? "Teacher" : "Office Staff";
+        return (
+          <Tooltip title={displayText}>
             <span
               style={{
-                display: "inline-block",
+                fontWeight: 500,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+            >
+              {displayText}
+            </span>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      field: "assignments_display",
+      headerName: "Classes",
+      flex: 1.2,
+      minWidth: calcMinWidth("Classes"),
+      renderCell: (params) => {
+        if (params.row.staff_type !== "teacher") {
+          return <span style={{ color: "#999" }}>-</span>;
+        }
+
+        const assignments = Array.isArray(params.row.assignments)
+          ? params.row.assignments.filter(
+              (a) => a && (a.class_name || a.class_id)
+            )
+          : [];
+
+        if (!assignments.length) {
+          return <span style={{ color: "#999" }}>No assignments</span>;
+        }
+
+        // Group assignments by class
+        const groupedByClass = assignments.reduce((acc, assignment) => {
+          const className =
+            assignment.class_name || `Class #${assignment.class_id}`;
+          const key = `${className}${
+            assignment.shift_name ? ` - ${assignment.shift_name}` : ""
+          }`;
+
+          if (!acc[key]) {
+            acc[key] = {
+              className: key,
+              divisions: [],
+            };
+          }
+
+          if (assignment.division) {
+            acc[key].divisions.push(assignment.division);
+          }
+
+          return acc;
+        }, {});
+
+        const classTexts = Object.values(groupedByClass).map((group) => {
+          const divisions = [...new Set(group.divisions)].sort();
+          const divisionDisplay =
+            divisions.length > 0
+              ? divisions.length <= 2
+                ? `(${divisions.join(", ")})`
+                : `(${divisions.slice(0, 2).join(", ")} +${
+                    divisions.length - 2
+                  })`
+              : "";
+
+          return `${group.className} ${divisionDisplay}`.trim();
+        });
+
+        const displayText = classTexts.join(" • ");
+        const fullText = Object.values(groupedByClass)
+          .map((group) => {
+            const divisions = [...new Set(group.divisions)].sort();
+            return `${group.className}${
+              divisions.length ? ` (${divisions.join(", ")})` : ""
+            }`;
+          })
+          .join(" • ");
+
+        return (
+          <Tooltip title={fullText}>
+            <Box
+              sx={{
                 maxWidth: "100%",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                verticalAlign: "bottom",
               }}
             >
-              {Array.isArray(params.row.shift_names)
-                ? params.row.shift_names.join(", ")
-                : "-"}
-            </span>
-          </Box>
-        </Tooltip>
-      ),
-    },
-    {
-      field: "assignments_display",
-      headerName: "Class",
-      flex: 1.2,
-      minWidth: calcMinWidth("Class"),
-      renderCell: (params) => {
-        const items = Array.isArray(params.row.assignments)
-          ? params.row.assignments
-              .filter((a) => a && (a.class_name || a.class_id))
-              .map((a) => {
-                const classPart = a.class_name || `Class #${a.class_id}`;
-                const divPart = a.division ? `-${a.division}` : "";
-                const timeStr =
-                  a.start_time && a.end_time
-                    ? `${a.start_time} - ${a.end_time}`
-                    : a.start_time || a.end_time || "-";
-                const shiftPart = a.shift_name
-                  ? `${a.shift_name} (${timeStr})`
-                  : "";
-                return `${classPart}${divPart}${
-                  shiftPart ? ` | ${shiftPart}` : ""
-                }`;
-              })
-          : [];
-        const text = items.length ? items.join(", ") : "-";
-        return (
-          <Tooltip title={text}>
-            <Box sx={{ width: "100%", overflow: "hidden" }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  maxWidth: "100%",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  verticalAlign: "bottom",
-                }}
-              >
-                {text}
-              </span>
+              {displayText}
             </Box>
           </Tooltip>
         );
@@ -171,8 +210,17 @@ const Staff = () => {
       renderCell: (params) => (
         <Box sx={{ display: "flex", alignItems: "center" }}>
           <PhoneIcon sx={{ mr: 1, color: teal[700] }} />
-          <Tooltip title={params.value}>
-            <span>{params.value}</span>
+          <Tooltip title={params.value || ""}>
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                maxWidth: "100%",
+              }}
+            >
+              {params.value || ""}
+            </span>
           </Tooltip>
         </Box>
       ),
@@ -207,20 +255,20 @@ const Staff = () => {
     },
   ];
 
-  const fetchTeachers = async () => {
+  const fetchStaff = async () => {
     setLoading(true);
     try {
-      const data = await window.electronAPI.getTeachers();
-      setTeachers(data);
+      const data = await window.electronAPI.getStaff();
+      setStaff(data);
     } catch (err) {
-      setError("Failed to fetch teachers", err);
+      setError("Failed to fetch staff", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTeachers();
+    fetchStaff();
     window.electronAPI.getClasses().then(setClasses);
     window.electronAPI.getClassShifts().then(setShifts);
     // Load unified class entries (aggregate across branches if multiple)
@@ -272,34 +320,49 @@ const Staff = () => {
 
   const selectedTeacher = useMemo(
     () =>
-      (teachers || []).find((t) => String(t.id) === String(reportTeacherId)),
-    [teachers, reportTeacherId]
+      (staff || [])
+        .filter((s) => s.staff_type === "teacher")
+        .find((t) => String(t.id) === String(reportTeacherId)),
+    [staff, reportTeacherId]
   );
 
   const reportRows = useMemo(() => {
-    if (!Array.isArray(students) || !selectedTeacher) return [];
-    const assignments = Array.isArray(selectedTeacher.assignments)
-      ? selectedTeacher.assignments
-      : [];
-    if (!assignments.length) return [];
-    const rows = students.filter((stu) => {
-      const sClassId = String(stu.class_id || stu.classId || "");
-      const sShiftId = String(stu.shift_id || stu.shiftId || "");
-      const sDiv = stu.division || "";
-      return assignments.some((a) => {
-        const aClassId = String(a.class_id || a.classId || "");
-        const aShiftId = String(a.shift_id || a.shiftId || "");
-        const aDiv = a.division || ""; // empty means any division
-        return (
-          aClassId &&
-          aShiftId &&
-          aClassId === sClassId &&
-          aShiftId === sShiftId &&
-          (aDiv === "" || aDiv === sDiv)
-        );
-      });
-    });
-    return rows.map((r, idx) => {
+    if (!Array.isArray(students)) return [];
+
+    let filteredStudents = students;
+
+    // Filter by teacher assignments if teacher is selected
+    if (selectedTeacher) {
+      const assignments = Array.isArray(selectedTeacher.assignments)
+        ? selectedTeacher.assignments
+        : [];
+      if (assignments.length > 0) {
+        filteredStudents = filteredStudents.filter((stu) => {
+          const sClassId = String(stu.class_id || stu.classId || "");
+          const sShiftId = String(stu.shift_id || stu.shiftId || "");
+          const sDiv = stu.division || "";
+
+          return assignments.some((a) => {
+            const aClassId = String(a.class_id || a.classId || "");
+            const aShiftId = String(a.shift_id || a.shiftId || "");
+            const aDiv = a.division || ""; // empty means any division
+
+            // More flexible matching - prioritize class match, then check shift and division
+            const classMatch = aClassId && aClassId === sClassId;
+
+            // If no shift specified in assignment or student, consider it a match
+            const shiftMatch = !aShiftId || !sShiftId || aShiftId === sShiftId;
+
+            // Division match: empty assignment division means all divisions
+            const divisionMatch = !aDiv || aDiv === sDiv;
+
+            return classMatch && shiftMatch && divisionMatch;
+          });
+        });
+      }
+    }
+
+    return filteredStudents.map((r, idx) => {
       const classObj = classesById.get(String(r.class_id));
       const className =
         r.class_name || classObj?.name || classObj?.class_name || "";
@@ -321,33 +384,12 @@ const Staff = () => {
         shift_display,
       };
     });
-  }, [students, selectedTeacher, shiftsById, classesById]);
+  }, [students, selectedTeacher, classesById, shiftsById]);
 
   const reportCount = reportRows.length;
-
-  // Labels and meta similar to Students report
-  const branchLabel = useMemo(
-    () => activeBranch?.name || activeBranch?.branch_name || "-",
-    [activeBranch]
-  );
-  const yearLabel = useMemo(() => {
-    const y = selectedYear || {};
-    return y.name || y.year_name || y.label || y.title || y.id || "-";
-  }, [selectedYear]);
-  const reportGeneratedAt = useMemo(() => {
-    try {
-      return new Date().toLocaleString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch (e) {
-      console.error("Failed to format date for report:", e);
-      return new Date().toISOString();
-    }
-  }, []);
+  const reportGeneratedAt = new Date().toLocaleString();
+  const branchLabel = activeBranch?.name || "-";
+  const yearLabel = selectedYear?.name || selectedYear?.year_name || "-";
 
   const handleOpenReport = () => {
     setReportTeacherId("");
@@ -356,7 +398,7 @@ const Staff = () => {
   const handleCloseReport = () => setReportOpen(false);
 
   const handlePrintReport = () => {
-    const teacherName = selectedTeacher?.name || "-";
+    const teacherName = selectedTeacher?.name || "All";
     const generatedAt = new Date().toLocaleString();
     const htmlRows = reportRows
       .map((r) => {
@@ -394,10 +436,9 @@ const Staff = () => {
     <body>
       <div class="header">
         <div class="branch">${branchLabel}</div>
-        <div class="subject">Subject: Teacher-wise Student Report</div>
-        <div class="meta">${generatedAt} • Teacher: ${teacherName} • Total: ${reportCount}</div>
+        <div class="subject">Teacher-wise Student Report</div>
+        <div class="meta">${generatedAt} • Total: ${reportCount}</div>
         <div class="chips">
-          <span class="chip">Branch: ${branchLabel}</span>
           <span class="chip">Year: ${yearLabel}</span>
           <span class="chip">Teacher: ${teacherName}</span>
         </div>
@@ -436,40 +477,40 @@ const Staff = () => {
     });
   }, []);
 
-  const handleEditClick = (teacher) => {
-    setEditingTeacher(teacher);
+  const handleEditClick = (staff) => {
+    setEditingStaff(staff);
     setShowEditModal(true);
     setError("");
     setSuccess("");
   };
 
-  const handleDeleteClick = (teacher) => {
-    setDeletingTeacher(teacher);
+  const handleDeleteClick = (staff) => {
+    setDeletingStaff(staff);
     setShowDeleteModal(true);
     setError("");
     setSuccess("");
   };
 
-  const handleAddTeacherSuccess = () => {
+  const handleAddStaffSuccess = () => {
     setShowAddModal(false);
-    setSuccess("Teacher added successfully!");
-    fetchTeachers();
+    setSuccess("Staff added successfully!");
+    fetchStaff();
     setTimeout(() => setSuccess(""), 2000);
   };
 
-  const handleEditTeacherSuccess = () => {
+  const handleEditStaffSuccess = () => {
     setShowEditModal(false);
-    setEditingTeacher(null);
-    setSuccess("Teacher updated successfully!");
-    fetchTeachers();
+    setEditingStaff(null);
+    setSuccess("Staff updated successfully!");
+    fetchStaff();
     setTimeout(() => setSuccess(""), 2000);
   };
 
-  const handleDeleteTeacherSuccess = () => {
+  const handleDeleteStaffSuccess = () => {
     setShowDeleteModal(false);
-    setDeletingTeacher(null);
-    setSuccess("Teacher deleted successfully!");
-    fetchTeachers();
+    setDeletingStaff(null);
+    setSuccess("Staff deleted successfully!");
+    fetchStaff();
     setTimeout(() => setSuccess(""), 2000);
   };
 
@@ -500,7 +541,7 @@ const Staff = () => {
             onClick={() => setShowAddModal(true)}
             disabled={loading}
           >
-            + Add Teacher
+            + Add Staff
           </Button>
         </Stack>
       </div>
@@ -549,8 +590,7 @@ const Staff = () => {
           {settingsLoaded && (
             <TableWrapper
               columns={columns}
-              rows={teachersWithSrNo}
-              pageSize={10}
+              rows={staffWithSrNo}
               columnVisibilityModel={columnVisibilityModel}
               onColumnVisibilityModelChange={handleColumnVisibilityModelChange}
               initialState={{
@@ -593,7 +633,6 @@ const Staff = () => {
         <DialogContent dividers>
           {/* Filter chips summary */}
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
-            <Chip size="small" label={`Branch: ${branchLabel}`} />
             <Chip size="small" label={`Year: ${yearLabel}`} />
             {selectedTeacher && (
               <Chip size="small" label={`Teacher: ${selectedTeacher.name}`} />
@@ -601,26 +640,53 @@ const Staff = () => {
           </Stack>
           <Divider sx={{ mb: 2 }} />
 
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{ mb: 2 }}
-          >
-            <FormControl size="small" sx={{ minWidth: 240 }}>
-              <InputLabel id="report-teacher-label">Teacher</InputLabel>
+          <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel
+                id="report-teacher-label"
+                shrink={reportTeacherId === "" || reportTeacherId !== ""}
+              >
+                Teacher
+              </InputLabel>
               <Select
                 labelId="report-teacher-label"
                 label="Teacher"
                 value={reportTeacherId}
                 onChange={(e) => setReportTeacherId(e.target.value)}
+                displayEmpty
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All";
+                  }
+                  const t = (staff || []).find(
+                    (s) => String(s.id) === String(selected)
+                  );
+                  return t?.name || String(selected);
+                }}
               >
-                {(teachers || []).map((t) => (
-                  <MenuItem key={t.id} value={String(t.id)}>
-                    {t.name}
-                  </MenuItem>
-                ))}
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {(staff || [])
+                  .filter((s) => s.staff_type === "teacher")
+                  .map((t) => (
+                    <MenuItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </MenuItem>
+                  ))}
               </Select>
             </FormControl>
+
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => {
+                setReportTeacherId("");
+              }}
+              sx={{ ml: "auto" }}
+            >
+              Reset
+            </Button>
           </Stack>
           <Divider sx={{ mb: 1 }} />
           <div style={{ width: "100%", height: 420 }}>
@@ -667,38 +733,43 @@ const Staff = () => {
           </div>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handlePrintReport} disabled={!selectedTeacher}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handlePrintReport}
+            disabled={reportRows.length === 0}
+          >
             Print
           </Button>
           <Button onClick={handleCloseReport}>Close</Button>
         </DialogActions>
       </Dialog>
-      <AddTeacherModal
+      <AddStaffModal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
         classes={classes}
         shifts={shifts}
         classEntries={classEntries}
-        onSuccess={handleAddTeacherSuccess}
+        onSuccess={handleAddStaffSuccess}
         setError={setError}
         setLoading={setLoading}
       />
-      <EditTeacherModal
+      <EditStaffModal
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
-        teacher={editingTeacher}
+        staff={editingStaff}
         classes={classes}
         shifts={shifts}
         classEntries={classEntries}
-        onSuccess={handleEditTeacherSuccess}
+        onSuccess={handleEditStaffSuccess}
         setError={setError}
         setLoading={setLoading}
       />
-      <DeleteTeacherModal
+      <DeleteStaffModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        teacher={deletingTeacher}
-        onSuccess={handleDeleteTeacherSuccess}
+        staff={deletingStaff}
+        onSuccess={handleDeleteStaffSuccess}
         setError={setError}
         setLoading={setLoading}
       />

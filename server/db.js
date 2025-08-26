@@ -122,16 +122,28 @@ db.serialize(() => {
     );
   `);
 
-  // Teachers table
+  // Staff table
   db.run(`
-    CREATE TABLE IF NOT EXISTS teachers (
+    CREATE TABLE IF NOT EXISTS staff (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       contact TEXT,
-      subject TEXT,
-      qualification TEXT,
-      address TEXT,
+      staff_type TEXT NOT NULL CHECK (staff_type IN ('office', 'teacher')),
+      role TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Teacher assignments table (simplified)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS teacher_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      staff_id INTEGER NOT NULL,
+      class_id INTEGER NOT NULL,
+      division TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
+      FOREIGN KEY (class_id) REFERENCES classes (id) ON DELETE CASCADE
     );
   `);
 
