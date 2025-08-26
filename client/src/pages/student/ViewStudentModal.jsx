@@ -17,6 +17,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import PersonIcon from "@mui/icons-material/Person";
 import LinearProgress from "@mui/material/LinearProgress";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import MonthlyFeeTracker from "../../component/MonthlyFeeTracker";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
@@ -203,7 +204,7 @@ export default function ViewStudentModal({
               <Chip
                 size="small"
                 variant="outlined"
-                label={`Roll ${s.roll_number || "-"}`}
+                label={`Roll No. ${s.roll_number || "-"}`}
                 sx={{ height: 20 }}
               />
             </Stack>
@@ -423,6 +424,16 @@ export default function ViewStudentModal({
               </Typography>
             </Box>
           </Section>
+
+          {/* Monthly Fee Tracker */}
+          {s.id && (
+            <MonthlyFeeTracker
+              studentId={s.id}
+              onError={(error) =>
+                console.error("Monthly fee tracker error:", error)
+              }
+            />
+          )}
         </Stack>
 
         <Box sx={{ textAlign: "right", mt: 1 }}>

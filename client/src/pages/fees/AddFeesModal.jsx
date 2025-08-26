@@ -403,6 +403,8 @@ const AddFeesModal = ({
         fee_charge: null,
       };
 
+      console.log({ payload });
+
       const result = await window.electronAPI.addFees(payload);
       if (result?.success) {
         // Clear form values for next entry
@@ -504,7 +506,9 @@ const AddFeesModal = ({
                         label="Upto Month"
                         size="small"
                         value={data?.month_year || ""}
-                        onChange={(e) => setData({ month_year: e.target.value })}
+                        onChange={(e) =>
+                          setData({ month_year: e.target.value })
+                        }
                         error={!!errors?.month_year}
                         helperText={errors?.month_year}
                         sx={{ bgcolor: "white" }}

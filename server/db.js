@@ -116,6 +116,7 @@ db.serialize(() => {
       total_fees DECIMAL(10,2) DEFAULT 0,
       pending_fees DECIMAL(10,2) DEFAULT 0,
       fee_breakdown TEXT,
+      months_paid TEXT DEFAULT '{}',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (class_id) REFERENCES classes (id),
       FOREIGN KEY (academic_year_id) REFERENCES academic_years (id)
@@ -170,12 +171,16 @@ db.serialize(() => {
       amount DECIMAL(10,2) NOT NULL,
       payment_type TEXT NOT NULL CHECK (payment_type IN ('cash', 'bank')),
       cheque_number TEXT,
+      cheque_date DATE,
       bank_name TEXT,
       payee_name TEXT,
       receipt_number TEXT UNIQUE NOT NULL,
       payment_date DATE NOT NULL,
+      academic_year TEXT,
       month_year TEXT,
       notes TEXT,
+      fee_term TEXT,
+      fee_charge DECIMAL(10,2),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (student_id) REFERENCES students (id),
       FOREIGN KEY (branch_id) REFERENCES branches (id),
@@ -193,6 +198,42 @@ db.serialize(() => {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Add months_paid column to existing students table if it doesn't exist
+  db.run(
+    `ALTER TABLE students ADD COLUMN months_paid TEXT DEFAULT '{}'`,
+    (err) => {
+      if (err && !err.message.includes("duplicate column name")) {
+        console.error("Error adding months_paid column:", err);
+      }
+    }
+  );
+
+  // Add missing columns to existing fees table if they don't exist
+  db.run(`ALTER TABLE fees ADD COLUMN academic_year TEXT`, (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.log("academic_year column already exists or added");
+    }
+  });
+
+  db.run(`ALTER TABLE fees ADD COLUMN fee_term TEXT`, (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.log("fee_term column already exists or added");
+    }
+  });
+
+  db.run(`ALTER TABLE fees ADD COLUMN fee_charge DECIMAL(10,2)`, (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.log("fee_charge column already exists or added");
+    }
+  });
+
+  // Add fees JSON column to classes table if it doesn't exist
+  db.run(`ALTER TABLE classes ADD COLUMN fees TEXT`, (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.log("fees column already exists or added");
+    }
+  });
 
   // Seed default data
   db.get("SELECT COUNT(*) as count FROM branches", (err, row) => {

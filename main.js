@@ -22,7 +22,8 @@ let getFees,
   getStudentsForFees,
   getFeesReceipt,
   getNextReceiptNumber,
-  getStudentTermSummary;
+  getStudentTermSummary,
+  getStudentMonthsStatus;
 // Class shifts not needed
 let listClassesByBranch, addClass, updateClass, deleteClass;
 let listAcademicYears,
@@ -205,7 +206,7 @@ app.whenReady().then(() => {
       getStudentById,
     } = require("./server/students"));
     ({
-      getClassesByBranch,
+      listClassesByBranch,
       addClass,
       updateClass,
       deleteClass,
@@ -233,14 +234,10 @@ app.whenReady().then(() => {
       getFeesReceipt,
       getNextReceiptNumber,
       getStudentTermSummary,
+      getStudentMonthsStatus,
     } = require("./server/fees"));
     // Class shifts module not needed - removing reference
-    ({
-      listClassesByBranch,
-      addClass,
-      updateClass,
-      deleteClass,
-    } = require("./server/classes"));
+    ({ listClassesByBranch } = require("./server/classes"));
     ({
       listAcademicYears,
       addAcademicYear,
@@ -251,6 +248,45 @@ app.whenReady().then(() => {
   } catch (e) {
     console.error("[main.js] Failed to initialize backend modules:", e);
   }
+
+  // IPC handler for getting student's month-wise payment status
+  ipcMain.handle("get-student-months-status", async (event, studentId) => {
+    console.log(
+      "[main.js] Handler called for get-student-months-status with studentId:",
+      studentId
+    );
+    return new Promise((resolve) => {
+      try {
+        if (typeof getStudentMonthsStatus !== "function") {
+          console.error(
+            "[main.js] getStudentMonthsStatus is not a function:",
+            typeof getStudentMonthsStatus
+          );
+          resolve({ success: false, error: "Backend function not available" });
+          return;
+        }
+
+        getStudentMonthsStatus(studentId, (err, result) => {
+          if (err) {
+            console.error(
+              "[main.js] Error in 'get-student-months-status' handler:",
+              err
+            );
+            resolve({ success: false, error: err.message });
+          } else {
+            console.log("[main.js] Successfully got months status:", result);
+            resolve({ success: true, ...result });
+          }
+        });
+      } catch (error) {
+        console.error(
+          "[main.js] Exception in 'get-student-months-status' handler:",
+          error
+        );
+        resolve({ success: false, error: error.message });
+      }
+    });
+  });
 
   createWindow();
 });
@@ -453,7 +489,6 @@ ipcMain.handle("set-setting", async (event, key, value) => {
   }
 });
 
-
 // Staff API handlers
 ipcMain.handle("get-staff", async () => {
   try {
@@ -502,7 +537,6 @@ ipcMain.handle("delete-staff", async (event, id) => {
     return { success: false, error: error.message };
   }
 });
-
 
 // Class shifts handlers removed - not needed
 

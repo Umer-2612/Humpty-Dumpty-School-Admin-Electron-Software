@@ -136,7 +136,7 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
   const { selected: selectedBranch } = useBranch?.() || {};
   const [shiftName, setShiftName] = useState("");
 
-  // Resolve shift display: prefer provided name; else look up by shift_id via IPC
+  // Resolve shift display: prefer provided name; else look up by class_id via IPC
   useEffect(() => {
     const resolveShift = async () => {
       const provided = r.shift || r.shift_name;
@@ -146,36 +146,25 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
       }
 
       console.log({ r });
-      const shId =
-        r.shift_id ??
-        r.shiftId ??
-        r.shiftid ??
-        (r.student && r.student.shift_id) ??
-        r.student_shift_id;
-      // If we don't have a shift id yet, try to fetch student by id
-      let effectiveShiftId = shId;
-      if (
-        !effectiveShiftId &&
-        r.student_id &&
-        window?.electronAPI?.getStudentById
-      ) {
+      
+      // Try to get shift name from class information
+      const classId = r.class_id || (r.student && r.student.class_id);
+      
+      if (classId && window?.electronAPI?.listClassesByBranch) {
         try {
-          const student = await window.electronAPI.getStudentById(r.student_id);
-          effectiveShiftId = student?.shift_id || null;
+          // Get the branch ID first
+          const branchId = r.branch_id || (r.student && r.student.branch_id);
+          if (branchId) {
+            const classes = await window.electronAPI.listClassesByBranch(branchId);
+            const foundClass = Array.isArray(classes)
+              ? classes.find((c) => String(c.class_id || c.id) === String(classId))
+              : null;
+            setShiftName(foundClass?.shift_name || "");
+          } else {
+            setShiftName("");
+          }
         } catch (e) {
-          console.error("Failed to load student for shift:", e);
-        }
-      }
-
-      if (effectiveShiftId && window?.electronAPI?.getClassShifts) {
-        try {
-          const list = await window.electronAPI.getClassShifts();
-          const found = Array.isArray(list)
-            ? list.find((s) => String(s.id) === String(effectiveShiftId))
-            : null;
-          setShiftName(found?.name || found?.shift || found?.shift_name || "");
-        } catch (e) {
-          console.error("Failed to load shifts for receipt:", e);
+          console.error("Failed to load class info for shift:", e);
           setShiftName("");
         }
       } else {
@@ -188,9 +177,8 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
     open,
     r.shift,
     r.shift_name,
-    r.shift_id,
-    r.shiftId,
-    r.shiftid,
+    r.class_id,
+    r.branch_id,
     r.student_id,
   ]);
 
@@ -217,7 +205,7 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
               width: 720,
               height: "auto",
               mx: "auto",
-              bgcolor: "#FFE873",
+              bgcolor: "#FFF",
               p: 1.5,
               pt: 1,
               display: "flex",
@@ -370,7 +358,9 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
               <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
                 <Field label="Cash ₹">
                   <Underline width="100%">
-                    {String((r.payment_type || "").toLowerCase()).includes("bank") ||
+                    {String((r.payment_type || "").toLowerCase()).includes(
+                      "bank"
+                    ) ||
                     String((r.payment_type || "").toLowerCase()) === "cheque"
                       ? ""
                       : r.amount || ""}
@@ -385,7 +375,13 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
                   valuePad={MID_VALUE_PAD}
                 >
                   <Underline width="100%" align="left">
-                    {r.payment_date || ""}
+                    {r.payment_date ? 
+                      new Date(r.payment_date).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: '2-digit', 
+                        year: 'numeric'
+                      }).replace(/\//g, '-') : ""
+                    }
                   </Underline>
                 </Field>
               </Grid>

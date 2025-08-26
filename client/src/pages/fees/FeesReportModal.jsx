@@ -1,370 +1,507 @@
-import React, { useEffect, useMemo, useState } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Divider from "@mui/material/Divider";
-import Stack from "@mui/material/Stack";
-import Chip from "@mui/material/Chip";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import InputLabel from "@mui/material/InputLabel";
-import FormControl from "@mui/material/FormControl";
-import Typography from "@mui/material/Typography";
-import Modal from "../../component/Modal";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Box,
+  Typography,
+  Divider,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  CircularProgress,
+  Stack,
+  Chip,
+  Button,
+} from "@mui/material";
+import { teal } from "@mui/material/colors";
+import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider";
-
-const monthOrder = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-
-function toMonthName(val) {
-  if (!val) return null;
-  const s = String(val).trim();
-  let m = s.match(/^(\d{4})[-.](\d{1,2})$/);
-  if (m) {
-    const idx = Math.max(0, Math.min(11, parseInt(m[2], 10) - 1));
-    return new Date(2000, idx, 1).toLocaleString(undefined, { month: "long" });
-  }
-  m = s.match(/^(\d{1,2})[-.](\d{4})$/);
-  if (m) {
-    const idx = Math.max(0, Math.min(11, parseInt(m[1], 10) - 1));
-    return new Date(2000, idx, 1).toLocaleString(undefined, { month: "long" });
-  }
-  const monthNames = monthOrder.map((x) => x.toLowerCase());
-  const lower = s.toLowerCase();
-  const found = monthNames.find((mn) => lower.includes(mn));
-  if (found) return found.charAt(0).toUpperCase() + found.slice(1);
-  return null;
-}
-
-function aggregateFees(rows, { className, division, studentId }) {
-  // Build structure: { [month]: { cash: total, bank: total, classes: { [className]: { [division]: { cash, bank } } } } }
-  const agg = {};
-  for (const r of rows || []) {
-    const month = toMonthName(r.month_year) || "Unknown";
-    const payType =
-      String(r.payment_type || "").toLowerCase() === "cash" ? "cash" : "bank";
-    const amt = Number(r.amount) || 0;
-    const cls = r.class_name || "";
-    const div = r.division || "";
-    const sid = r.student_id ?? r.studentId ?? r.studentID ?? null;
-
-    // Filter
-    if (className && cls !== className) continue;
-    if (
-      division &&
-      String(div || "")
-        .toUpperCase()
-        .trim() !== String(division).toUpperCase().trim()
-    )
-      continue;
-    if (studentId && String(sid || "") !== String(studentId)) continue;
-
-    if (!agg[month]) {
-      agg[month] = { cash: 0, bank: 0 };
-    }
-    agg[month][payType] += amt;
-  }
-  return agg;
-}
+import TableWrapper from "../../component/TableWrapper";
 
 export default function FeesReportModal({ open, onClose }) {
   const { selected: branch } = useBranch?.() || {};
   const { selected: year } = useYear();
-  const [fees, setFees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [classOptions, setClassOptions] = useState([]); // legacy, not used once classEntries wired
-  const [selectedClass, setSelectedClass] = useState(""); // derived from selected entry
-  const [divisionOptions, setDivisionOptions] = useState([]);
-  const [selectedDivision, setSelectedDivision] = useState("");
   const [classEntries, setClassEntries] = useState([]);
   const [selectedEntryId, setSelectedEntryId] = useState("");
-  const [studentOptions, setStudentOptions] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState("");
-  const [monthOptions, setMonthOptions] = useState([]);
-  const [selectedMonths, setSelectedMonths] = useState([]); // multiple selection
-  // No extra exporting controls to match other report UIs
+  const [selectedClass, setSelectedClass] = useState("");
+  const [divisionOptions, setDivisionOptions] = useState([]);
+  const [selectedDivision, setSelectedDivision] = useState("");
+  const [students, setStudents] = useState([]);
 
-  console.log(classOptions);
+  console.log({ selectedClass });
 
+  // Add serial numbers to students data
+  const studentsWithSrNo = students.map((item, index) => ({
+    ...item,
+    srNo: index + 1,
+  }));
+
+  // Labels for report header summary
+  const reportClassLabel = useMemo(() => {
+    if (!selectedEntryId) return "Not Selected";
+    const c = classEntries.find(
+      (x) => String(x.class_id || x.id) === String(selectedEntryId)
+    );
+    return c?.class_name
+      ? `${c.class_name} - ${c.shift_name}`
+      : String(selectedEntryId);
+  }, [selectedEntryId, classEntries]);
+
+  const reportDivisionLabel = useMemo(() => {
+    if (!selectedDivision) return "Not Selected";
+    return String(selectedDivision);
+  }, [selectedDivision]);
+
+  const yearLabel = useMemo(() => {
+    const y = year || {};
+    return y.name || y.year_name || y.label || y.title || y.id || "-";
+  }, [year]);
+
+  const branchLabel = useMemo(() => branch?.name || "-", [branch]);
+
+  const reportCount = students.length;
+  const reportGeneratedAt = useMemo(() => {
+    try {
+      return new Date().toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      console.error("Failed to format date:", e);
+      return new Date().toISOString();
+    }
+  }, []);
+
+  // Fetch class entries when modal opens
   useEffect(() => {
-    const load = async () => {
-      if (!open) return;
-      if (!branch?.id) return;
+    const fetchClassEntries = async () => {
+      if (!open || !branch?.id) return;
+      try {
+        const data = await window.electronAPI.listClassesByBranch(branch.id);
+        setClassEntries(data || []);
+      } catch (e) {
+        console.error("Failed to fetch class entries:", e);
+      }
+    };
+    fetchClassEntries();
+  }, [open, branch?.id]);
+
+  // Generate divisions when class is selected
+  useEffect(() => {
+    console.log("Division generation - selectedEntryId:", selectedEntryId);
+    console.log("Division generation - classEntries:", classEntries);
+
+    if (!selectedEntryId) {
+      // When "All" is selected, show all divisions from all classes
+      const allDivisions = new Set();
+      classEntries.forEach((entry) => {
+        console.log("Processing entry for all divisions:", entry);
+        for (
+          let i = 1;
+          i <= (entry.division_count || entry.num_divisions || 1);
+          i++
+        ) {
+          allDivisions.add(String.fromCharCode(64 + i)); // A, B, C, etc.
+        }
+      });
+      const sortedDivisions = Array.from(allDivisions).sort();
+      console.log("All divisions generated:", sortedDivisions);
+      setDivisionOptions(sortedDivisions);
+      setSelectedDivision("");
+      return;
+    }
+    const entry = classEntries.find(
+      (e) => String(e.class_id || e.id) === String(selectedEntryId)
+    );
+    console.log("Found entry for specific class:", entry);
+    if (entry) {
+      setSelectedClass(entry.class_name);
+      const divisions = [];
+      for (
+        let i = 1;
+        i <= (entry.division_count || entry.num_divisions || 1);
+        i++
+      ) {
+        divisions.push(String.fromCharCode(64 + i)); // A, B, C, etc.
+      }
+      console.log("Divisions for specific class:", divisions);
+      setDivisionOptions(divisions);
+      setSelectedDivision("");
+    }
+  }, [selectedEntryId, classEntries]);
+
+  // Fetch students when class and division are selected
+  useEffect(() => {
+    const fetchStudents = async () => {
+      if (!selectedDivision) {
+        setStudents([]);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
-        const rows = await window.electronAPI.getFees(
+        const result = await window.electronAPI.getStudents(
           branch.id,
           year?.id || null
         );
-        const list = Array.isArray(rows)
-          ? rows
-          : Array.isArray(rows?.fees)
-          ? rows.fees
-          : [];
-        setFees(list);
-        // Clear division options; they will be driven by class entry selection like AddStudentModal
-        setDivisionOptions([]);
-        // Build student options (All + unique by id with name)
-        const seen = new Set();
-        const students = [];
-        (list || []).forEach((r) => {
-          const id = r.student_id ?? r.studentId ?? r.studentID;
-          const name = r.student_name || r.name || "";
-          if (id != null && !seen.has(String(id))) {
-            seen.add(String(id));
-            students.push({ id: String(id), name: name || String(id) });
-          }
+        console.log("Students API result:", result);
+
+        // Handle both direct array response and success object response
+        const allStudents = Array.isArray(result)
+          ? result
+          : result?.students || [];
+
+        // Filter by class and division
+        const filtered = allStudents.filter((student) => {
+          const matchesClass =
+            !selectedEntryId ||
+            String(student.class_id) === String(selectedEntryId);
+          const matchesDivision =
+            String(student.division || "").toUpperCase() ===
+            selectedDivision.toUpperCase();
+          console.log(
+            `Student ${student.name}: class_id=${student.class_id}, division=${student.division}, matchesClass=${matchesClass}, matchesDivision=${matchesDivision}`
+          );
+          return matchesClass && matchesDivision;
         });
-        students.sort((a, b) => a.name.localeCompare(b.name));
-        setStudentOptions([{ id: "", name: "All" }, ...students]);
-        // Month options: show all months for selection
-        setMonthOptions([...monthOrder]);
+
+        console.log(
+          `Filtered ${filtered.length} students from ${allStudents.length} total`
+        );
+
+        // Get term summary for each student
+        const studentsWithFees = await Promise.all(
+          filtered.map(async (student) => {
+            try {
+              const termResult = await window.electronAPI.getStudentTermSummary(
+                student.id,
+                year?.id || null
+              );
+              return {
+                ...student,
+                termSummary: termResult?.success
+                  ? termResult.summary
+                  : { terms: {} },
+              };
+            } catch (e) {
+              console.error(
+                `Failed to get term summary for student ${student.id}:`,
+                e
+              );
+              return {
+                ...student,
+                termSummary: { terms: {} },
+              };
+            }
+          })
+        );
+
+        setStudents(studentsWithFees);
       } catch (e) {
-        console.error(e);
-        setError("Failed to load fees for report");
+        console.error("Failed to fetch students:", e);
+        setError("Failed to load students");
       } finally {
         setLoading(false);
       }
     };
-    load();
-  }, [open, branch?.id, year?.id]);
+    fetchStudents();
+  }, [selectedEntryId, selectedDivision, branch?.id, year?.id]);
 
-  // Fetch all classes for class dropdown (show all classes, not just in fees data)
-  useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        if (!branch?.id) {
-          setClassOptions([""]);
-          return;
-        }
-        const data = await window.electronAPI.getClassesByBranch(branch.id);
-        const names = (data || [])
-          .map((c) => c?.name)
-          .filter(Boolean)
-          .sort((a, b) => a.localeCompare(b));
-        setClassOptions(["", ...names]);
-      } catch (e) {
-        console.error("Failed to fetch classes for fees report", e);
-      }
-    };
-    fetchClasses();
-  }, [branch?.id]);
-
-  // Fetch class entries (class + shift + division_count) to mirror AddStudentModal behavior
-  useEffect(() => {
-    const fetchEntries = async () => {
-      try {
-        if (!branch?.id) {
-          setClassEntries([]);
-          return;
-        }
-        const list = await window.electronAPI.listClassesByBranch(branch.id);
-        setClassEntries(list || []);
-      } catch (e) {
-        console.error("Failed to fetch class entries for fees report", e);
-      }
-    };
-    fetchEntries();
-  }, [branch?.id]);
-
-  // Update division options when class entry changes (dependent like AddStudentModal)
-  useEffect(() => {
-    const entry = (classEntries || []).find(
-      (e) => String(e.id) === String(selectedEntryId || "")
-    );
-    const count = Number(entry?.division_count || 0);
-    if (entry && count > 0) {
-      const letters = Array.from({ length: count }, (_, i) =>
-        String.fromCharCode(65 + i)
-      );
-      setDivisionOptions(letters);
-      if (!letters.includes(String(selectedDivision || ""))) {
-        setSelectedDivision("");
-      }
-      // Also set selectedClass for aggregation filter
-      setSelectedClass(entry.class_name || "");
-    } else {
-      setDivisionOptions([]);
-      setSelectedDivision("");
-      setSelectedClass("");
-    }
-  }, [selectedEntryId, classEntries, selectedDivision]);
-
-  const agg = useMemo(
-    () =>
-      aggregateFees(fees, {
-        className: selectedClass || null,
-        division: selectedDivision || null,
-        studentId: selectedStudent || null,
-      }),
-    [fees, selectedClass, selectedDivision, selectedStudent]
+  // Report modal columns
+  const reportColumns = useMemo(
+    () => [
+      {
+        field: "srNo",
+        headerName: "Sr. No.",
+        flex: 0.5,
+        minWidth: 80,
+      },
+      {
+        field: "name",
+        headerName: "Student Name",
+        flex: 1.5,
+        minWidth: 200,
+        renderCell: (params) => {
+          const rollNumber = params.row.roll_number;
+          return rollNumber ? `${params.value} (${rollNumber})` : params.value;
+        },
+      },
+      {
+        field: "totalAmount",
+        headerName: "Total Fees",
+        flex: 0.8,
+        minWidth: 120,
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+      {
+        field: "receivedAmount",
+        headerName: "Received",
+        flex: 0.8,
+        minWidth: 120,
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+      {
+        field: "pendingAmount",
+        headerName: "Pending",
+        flex: 0.8,
+        minWidth: 120,
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+    ],
+    []
   );
 
-  const monthsSorted = useMemo(() => {
-    const keys = Object.keys(agg).sort(
-      (a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b)
-    );
-    if (selectedMonths && selectedMonths.length > 0) {
-      const set = new Set(selectedMonths);
-      return keys.filter((k) => set.has(k));
-    }
-    return keys;
-  }, [agg, selectedMonths]);
+  // Prepare students data with calculated amounts
+  const studentsWithAmounts = useMemo(() => {
+    return studentsWithSrNo.map((student) => {
+      const terms = student.termSummary?.terms || {};
+      let totalAmount = 0;
+      let receivedAmount = 0;
+      let pendingAmount = 0;
 
-  // Keep UI minimal and consistent; use browser print for hard copy
+      // Calculate totals across all terms
+      Object.values(terms).forEach((term) => {
+        totalAmount += Number(term.total) || 0;
+        receivedAmount += Number(term.paid) || 0;
+        pendingAmount += Number(term.pending) || 0;
+      });
+
+      return {
+        ...student,
+        totalAmount,
+        receivedAmount,
+        pendingAmount,
+      };
+    });
+  }, [studentsWithSrNo]);
+
+  // Calculate grand totals for all students
+  const grandTotals = useMemo(() => {
+    return studentsWithAmounts.reduce(
+      (acc, student) => ({
+        totalAmount: acc.totalAmount + (student.totalAmount || 0),
+        receivedAmount: acc.receivedAmount + (student.receivedAmount || 0),
+        pendingAmount: acc.pendingAmount + (student.pendingAmount || 0),
+      }),
+      { totalAmount: 0, receivedAmount: 0, pendingAmount: 0 }
+    );
+  }, [studentsWithAmounts]);
+
+  // Build report HTML string (used by Print)
+  const buildReportHtml = useCallback(
+    (rows) => {
+      const columns = [
+        { key: "srNo", title: "Sr. No." },
+        { key: "name", title: "Student Name" },
+        { key: "totalAmount", title: "Total Fees" },
+        { key: "receivedAmount", title: "Received" },
+        { key: "pendingAmount", title: "Pending" },
+      ];
+
+      const htmlRows = (rows || [])
+        .map((r) => {
+          const vals = [
+            r.srNo || "",
+            r.roll_number ? `${r.name || ""} (${r.roll_number})` : r.name || "",
+            `₹${r.totalAmount?.toLocaleString("en-IN") || 0}`,
+            `₹${r.receivedAmount?.toLocaleString("en-IN") || 0}`,
+            `₹${r.pendingAmount?.toLocaleString("en-IN") || 0}`,
+          ].map((v) =>
+            String(v)
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+          );
+          return `<tr>${vals.map((v) => `<td>${v}</td>`).join("")}</tr>`;
+        })
+        .join("");
+
+      const html = `<!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Fee Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 16px; }
+          .header { margin-bottom: 12px; text-align: center; }
+          .branch { margin: 0; font-size: 20px; font-weight: 700; }
+          .subject { margin: 2px 0 0 0; font-size: 13px; color: #333; }
+          .meta { margin: 4px 0 8px 0; font-size: 12px; color: #555; }
+          .chips { margin: 6px 0 12px 0; text-align: center; }
+          .chip { display: inline-block; border: 1px solid #bbb; border-radius: 12px; padding: 2px 8px; font-size: 11px; margin-right: 6px; margin-bottom: 6px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
+          th { background: #f0f0f0; text-align: left; }
+          @media print {
+            @page { size: A4; margin: 12mm; }
+            thead { display: table-header-group; }
+            tfoot { display: table-row-group; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="branch">${branchLabel}</div>
+          <div class="subject">Fee Report</div>
+          <div class="meta">${reportGeneratedAt} • Total: ${reportCount}</div>
+          <div class="chips">
+            <span class="chip">Year: ${yearLabel}</span>
+            <span class="chip">Class: ${reportClassLabel}</span>
+            <span class="chip">Division: ${reportDivisionLabel}</span>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>${columns.map((c) => `<th>${c.title}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${htmlRows}
+          </tbody>
+          <tfoot>
+            <tr style="border-top: 2px solid #333; background: #f5f5f5;">
+              <td colspan="2" style="font-weight: bold; text-align: right; padding: 8px;">Grand Total:</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalAmount.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.receivedAmount.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingAmount.toLocaleString(
+                "en-IN"
+              )}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+      </html>`;
+      return html;
+    },
+    [
+      branchLabel,
+      reportGeneratedAt,
+      reportCount,
+      yearLabel,
+      reportClassLabel,
+      reportDivisionLabel,
+      grandTotals.totalAmount,
+      grandTotals.receivedAmount,
+      grandTotals.pendingAmount,
+    ]
+  );
+
+  // Print: open print dialog with all filtered rows
+  const printReport = useCallback(() => {
+    const html = buildReportHtml(studentsWithAmounts);
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.open();
+      w.document.write(
+        html.replace(
+          "</body>",
+          "<script>window.onload = function(){ window.print(); }</script></body>"
+        )
+      );
+      w.document.close();
+    }
+  }, [buildReportHtml, studentsWithAmounts]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Fees Report" maxWidth="md">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {/* Filters - align with Students report style */}
-        {/* Header chips like other reports */}
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", mb: 1 }}>
-          <Chip size="small" label={`Branch: ${branch?.name || "-"}`} />
-          <Chip
-            size="small"
-            label={`Year: ${year?.name || year?.year_name || "-"}`}
-          />
-          <Chip size="small" label={`Class: ${selectedClass || "All"}`} />
-          <Chip size="small" label={`Division: ${selectedDivision || "All"}`} />
-          <Chip
-            size="small"
-            label={`Student: ${
-              selectedStudent
-                ? studentOptions.find((s) => s.id === String(selectedStudent))
-                    ?.name || selectedStudent
-                : "All"
-            }`}
-          />
-          <Chip
-            size="small"
-            label={`Months: ${
-              selectedMonths.length ? selectedMonths.join(", ") : "All"
-            }`}
-          />
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+      <DialogTitle sx={{ pb: 1 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={2}
+        >
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <AssessmentIcon sx={{ color: teal[700] }} />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                Fee Report
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {reportGeneratedAt} • Total: {reportCount}
+              </Typography>
+            </Box>
+          </Stack>
         </Stack>
-
+      </DialogTitle>
+      <DialogContent dividers>
+        {/* Filter chips summary */}
+        <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
+          <Chip size="small" label={`Branch: ${branchLabel}`} />
+          <Chip size="small" label={`Year: ${yearLabel}`} />
+          <Chip size="small" label={`Class: ${reportClassLabel}`} />
+          <Chip size="small" label={`Division: ${reportDivisionLabel}`} />
+        </Stack>
+        <Divider sx={{ mb: 2 }} />
+        {/* Filters */}
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
-          sx={{ mb: 1 }}
+          sx={{ mb: 2 }}
         >
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel id="fees-report-class-entry-label" shrink>
-              Class & Shift
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel
+              shrink={selectedEntryId === "" || selectedEntryId !== ""}
+            >
+              Class
             </InputLabel>
             <Select
-              labelId="fees-report-class-entry-label"
-              label="Class & Shift"
               value={selectedEntryId}
+              label="Class"
               onChange={(e) => setSelectedEntryId(e.target.value)}
               displayEmpty
-              renderValue={(val) => {
-                if (!val) return "All";
-                const ce = (classEntries || []).find(
-                  (x) => String(x.id) === String(val)
+              renderValue={(selected) => {
+                const selectedClass = classEntries.find(
+                  (c) => String(c.class_id || c.id) === String(selected)
                 );
-                return (
-                  (
-                    (ce?.class_name || "") +
-                    " - " +
-                    (ce?.shift_name || "")
-                  ).trim() || "All"
-                );
+                return selectedClass?.class_name
+                  ? `${selectedClass.class_name} - ${selectedClass.shift_name}`
+                  : "Select Class";
               }}
             >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {(classEntries || []).map((ce) => (
-                <MenuItem key={ce.id} value={ce.id}>
-                  {(ce.class_name || "") + " - " + (ce.shift_name || "")}
+              {classEntries.map((entry) => (
+                <MenuItem
+                  key={entry.class_id || entry.id}
+                  value={entry.class_id || entry.id}
+                >
+                  {entry.class_name} - {entry.shift_name}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel id="fees-report-division-label" shrink>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel
+              shrink={selectedDivision === "" || selectedDivision !== ""}
+            >
               Division
             </InputLabel>
             <Select
-              labelId="fees-report-division-label"
-              label="Division"
               value={selectedDivision}
+              label="Division"
               onChange={(e) => setSelectedDivision(e.target.value)}
               displayEmpty
-              renderValue={(val) => (val ? val : "All")}
+              disabled={!selectedEntryId}
+              renderValue={(selected) => selected || "Select Division"}
             >
-              <MenuItem value="">
-                <em>All</em>
-              </MenuItem>
-              {divisionOptions.map((d) => (
-                <MenuItem key={d} value={d}>
-                  {d}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel id="fees-report-student-label" shrink>
-              Student
-            </InputLabel>
-            <Select
-              labelId="fees-report-student-label"
-              label="Student"
-              value={selectedStudent}
-              onChange={(e) => setSelectedStudent(e.target.value)}
-              displayEmpty
-              renderValue={(val) => {
-                if (!val) return "All";
-                return (
-                  studentOptions.find((s) => s.id === String(val))?.name ||
-                  "All"
-                );
-              }}
-            >
-              {studentOptions.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel id="fees-report-months-label" shrink>
-              Month(s)
-            </InputLabel>
-            <Select
-              labelId="fees-report-months-label"
-              label="Month(s)"
-              multiple
-              value={selectedMonths}
-              onChange={(e) => setSelectedMonths(e.target.value)}
-              renderValue={(selected) =>
-                (selected || []).length === 0
-                  ? "All"
-                  : (selected || []).join(", ")
-              }
-            >
-              {monthOptions.map((m) => (
-                <MenuItem key={m} value={m}>
-                  {m}
+              {divisionOptions.map((div) => (
+                <MenuItem key={div} value={div}>
+                  {div}
                 </MenuItem>
               ))}
             </Select>
@@ -374,73 +511,98 @@ export default function FeesReportModal({ open, onClose }) {
             variant="text"
             color="inherit"
             onClick={() => {
-              setSelectedClass("");
-              setSelectedDivision("");
-              setSelectedStudent("");
-              setSelectedMonths([]);
               setSelectedEntryId("");
+              setSelectedDivision("");
             }}
-            sx={{ ml: { sm: "auto" } }}
+            sx={{ ml: "auto" }}
           >
             Reset
           </Button>
-
-          <Box sx={{ flexGrow: 1 }} />
-          <Stack direction="row" spacing={1}>
-            <Button variant="contained" onClick={() => window.print()}>
-              Print
-            </Button>
-            <Button variant="outlined" color="inherit" onClick={onClose}>
-              Close
-            </Button>
-          </Stack>
         </Stack>
 
-        {loading && <Typography>Loading…</Typography>}
-        {error && <Typography color="error">{error}</Typography>}
-
-        {!loading && !error && (
-          <Box>
-            {/* Summary table */}
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "1.2fr 0.6fr 0.6fr 0.6fr",
-                gap: 1,
-                fontWeight: 700,
-                mb: 1,
-              }}
-            >
-              <Box>Month</Box>
-              <Box>Cash</Box>
-              <Box>Bank</Box>
-              <Box>Total</Box>
-            </Box>
-            <Divider sx={{ mb: 1 }} />
-            {monthsSorted.map((m) => {
-              const cash = agg[m]?.cash || 0;
-              const bank = agg[m]?.bank || 0;
-              const total = cash + bank;
-              return (
-                <Box
-                  key={m}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 0.6fr 0.6fr 0.6fr",
-                    gap: 1,
-                    py: 0.5,
-                  }}
-                >
-                  <Box>{m}</Box>
-                  <Box>₹ {cash.toLocaleString()}</Box>
-                  <Box>₹ {bank.toLocaleString()}</Box>
-                  <Box>₹ {total.toLocaleString()}</Box>
-                </Box>
-              );
-            })}
+        {/* Content */}
+        {loading && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress />
           </Box>
         )}
-      </Box>
-    </Modal>
+
+        {error && (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <Typography color="error">{error}</Typography>
+          </Box>
+        )}
+
+        {!loading && !error && !selectedDivision && (
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <Typography color="text.secondary">
+              Please select a division to view the report.
+            </Typography>
+          </Box>
+        )}
+
+        {/* Live count hint above table */}
+        <Typography variant="caption" sx={{ mb: 1, color: "text.secondary" }}>
+          Showing {reportCount} result(s)
+        </Typography>
+
+        {!loading && !error && selectedDivision && (
+          <div style={{ width: "100%", height: "60vh" }}>
+            <TableWrapper
+              columns={reportColumns}
+              rows={[
+                ...studentsWithAmounts,
+                // Add totals row
+                {
+                  id: "grand-total",
+                  srNo: "",
+                  roll_number: "",
+                  name: "Grand Total",
+                  totalAmount: grandTotals.totalAmount,
+                  receivedAmount: grandTotals.receivedAmount,
+                  pendingAmount: grandTotals.pendingAmount,
+                  isGrandTotal: true,
+                },
+              ]}
+              pagination={false}
+              hidePageSize={true}
+              enableExport={false}
+              initialState={{
+                sorting: { sortModel: [] },
+              }}
+              disableColumnSort={true}
+              getRowClassName={(params) =>
+                params.row.isGrandTotal ? "grand-total-row" : ""
+              }
+              sx={{
+                "& .grand-total-row": {
+                  backgroundColor: "#f5f5f5",
+                  fontWeight: "bold",
+                  borderTop: "2px solid #333",
+                  "& .MuiDataGrid-cell": {
+                    fontWeight: "bold",
+                  },
+                },
+              }}
+            />
+          </div>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={printReport}
+          disabled={
+            !selectedEntryId ||
+            !selectedDivision ||
+            studentsWithAmounts.length === 0
+          }
+        >
+          Print
+        </Button>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
   );
 }
