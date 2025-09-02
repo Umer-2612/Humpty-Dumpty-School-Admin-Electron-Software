@@ -31,11 +31,17 @@ import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
+import CircularProgress from "@mui/material/CircularProgress";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider.jsx";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import ViewStudentModal from "./ViewStudentModal";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 
 const SETTINGS_KEY = "studentsTableSettings";
 
@@ -43,6 +49,10 @@ const Students = () => {
   const { selected: selectedBranch } = useBranch();
   const { selected: selectedYear } = useYear();
   const [students, setStudents] = useState([]);
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const searchTimer = React.useRef(null);
   const [classEntries, setClassEntries] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -76,7 +86,12 @@ const Students = () => {
   }, [classEntries]);
 
   // Add serial numbers to students data
-  const studentsWithSrNo = students.map((item, index) => ({
+  const displayedBase = useMemo(() => {
+    const useServer = (search || "").trim().length >= 2;
+    return useServer ? searchResults : students;
+  }, [search, searchResults, students]);
+
+  const studentsWithSrNo = displayedBase.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
@@ -312,6 +327,25 @@ const Students = () => {
       w.document.close();
     }
   }, [reportFiltered, buildReportHtml]);
+
+  // Ensure we always pass a complete student object to modals
+  const normalizeStudent = useCallback(
+    (row) => {
+      if (!row || !Array.isArray(students)) return row;
+      const full = students.find((s) => String(s.id) === String(row.id));
+      // Merge: prefer fields from full list (has consistent shape), but keep any extra fields from row
+      return full ? { ...full, ...row } : row;
+    },
+    [students]
+  );
+
+  const handleViewClick = useCallback(
+    (student) => {
+      setViewingStudent(normalizeStudent(student));
+      setShowViewModal(true);
+    },
+    [normalizeStudent]
+  );
 
   const columns = useMemo(
     () => [
@@ -659,10 +693,7 @@ const Students = () => {
               variant="contained"
               color="secondary"
               size="small"
-              onClick={() => {
-                setViewingStudent(params.row);
-                setShowViewModal(true);
-              }}
+              onClick={() => handleViewClick(params.row)}
             >
               Details
             </Button>
@@ -686,7 +717,7 @@ const Students = () => {
         ),
       },
     ],
-    []
+    [handleViewClick]
   );
 
   const fetchStudents = useCallback(async () => {
@@ -733,6 +764,62 @@ const Students = () => {
       setClassEntries([]);
     }
   }, [fetchClassEntries, selectedBranch]);
+
+  // Debounced search effect using backend searchStudentsByYear when available
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+
+    const q = (search || "").trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    searchTimer.current = setTimeout(async () => {
+      try {
+        setSearching(true);
+        if (window?.electronAPI?.searchStudentsByYear) {
+          const res = await window.electronAPI.searchStudentsByYear(
+            selectedBranch?.id || null,
+            q,
+            selectedYear?.id || null
+          );
+          setSearchResults(Array.isArray(res) ? res : []);
+        } else if (window?.electronAPI?.getStudents) {
+          // Fallback to client-side filter
+          const all = await window.electronAPI.getStudents(
+            selectedBranch?.id || null,
+            selectedYear?.id || null
+          );
+          const list = Array.isArray(all) ? all : [];
+          const lower = q.toLowerCase();
+          const filtered = list.filter((s) => {
+            const name = (s.name || "").toLowerCase();
+            const roll = (s.roll_number || "").toString().toLowerCase();
+            const cls = (s.class_name || "").toLowerCase();
+            return (
+              name.includes(lower) ||
+              roll.includes(lower) ||
+              cls.includes(lower)
+            );
+          });
+          setSearchResults(filtered);
+        } else {
+          setSearchResults([]);
+        }
+      } catch (e) {
+        console.error("[Students] search error", e);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search, selectedBranch?.id, selectedYear?.id]);
 
   useEffect(() => {
     let mounted = true;
@@ -796,7 +883,7 @@ const Students = () => {
   }, []);
 
   const handleEditClick = (student) => {
-    setEditingStudent(student);
+    setEditingStudent(normalizeStudent(student));
     setShowEditModal(true);
     setError("");
     setSuccess("");
@@ -805,7 +892,7 @@ const Students = () => {
   const handleDeleteClick = (student) => {
     console.log("🟡 [FRONTEND] Students.jsx: handleDeleteClick called");
     console.log("🟡 [FRONTEND] Student to delete:", student);
-    setDeletingStudent(student);
+    setDeletingStudent(normalizeStudent(student));
     setShowDeleteModal(true);
     setError("");
     setSuccess("");
@@ -854,6 +941,40 @@ const Students = () => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Students</h1>
         <Stack direction="row" spacing={2} alignItems="center">
+          <Tooltip title={search || "Search by name, roll no, class"} arrow>
+            <TextField
+              size="small"
+              placeholder="Search students..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{
+                minWidth: 260,
+                "& .MuiInputBase-input": {
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {searching ? (
+                      <CircularProgress size={16} />
+                    ) : search ? (
+                      <IconButton size="small" onClick={() => setSearch("")}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    ) : null}
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Tooltip>
           <Button
             variant="outlined"
             color="secondary"

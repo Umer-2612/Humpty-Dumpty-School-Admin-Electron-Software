@@ -748,37 +748,48 @@ const AddFeesModal = ({
                       )}
                       renderOption={(props, option, { index }) => {
                         const { key, ...otherProps } = props;
+                        const optionText = `${option.name} - (${option.class_name}) (${option.roll_number})`;
                         return (
-                          <Box
-                            key={key}
-                            component="li"
-                            {...otherProps}
-                            sx={{
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              padding: "8px 16px",
-                              display: "flex",
-                              alignItems: "center",
-                            }}
-                          >
+                          <Tooltip title={optionText} arrow placement="right">
                             <Box
-                              component="span"
+                              key={key}
+                              component="li"
+                              {...otherProps}
                               sx={{
-                                minWidth: "24px",
-                                marginRight: "8px",
-                                fontFamily: "inherit",
-                                fontSize: "inherit",
-                                fontWeight: "inherit",
-                                color: "inherit",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                padding: "8px 16px",
+                                display: "flex",
+                                alignItems: "center",
                               }}
                             >
-                              {index + 1}.
+                              <Box
+                                component="span"
+                                sx={{
+                                  minWidth: "24px",
+                                  marginRight: "8px",
+                                  fontFamily: "inherit",
+                                  fontSize: "inherit",
+                                  fontWeight: "inherit",
+                                  color: "inherit",
+                                }}
+                              >
+                                {index + 1}.
+                              </Box>
+                              <Box 
+                                component="span" 
+                                sx={{ 
+                                  flex: 1,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {optionText}
+                              </Box>
                             </Box>
-                            <Box component="span" sx={{ flex: 1 }}>
-                              {`${option.name} - (${option.class_name}) (${option.roll_number})`}
-                            </Box>
-                          </Box>
+                          </Tooltip>
                         );
                       }}
                       filterOptions={(x) => x}
