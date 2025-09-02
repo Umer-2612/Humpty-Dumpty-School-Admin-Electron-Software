@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Dialog,
   DialogTitle,
@@ -15,12 +21,15 @@ import {
   Stack,
   Chip,
   Button,
+  IconButton,
 } from "@mui/material";
 import { teal } from "@mui/material/colors";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider";
-import TableWrapper from "../../component/TableWrapper";
+import FeesReportTable from "../../component/FeesReportTable";
 
 export default function FeesReportModal({ open, onClose }) {
   const { selected: branch } = useBranch?.() || {};
@@ -33,6 +42,9 @@ export default function FeesReportModal({ open, onClose }) {
   const [divisionOptions, setDivisionOptions] = useState([]);
   const [selectedDivision, setSelectedDivision] = useState("");
   const [students, setStudents] = useState([]);
+  const [page, setPage] = useState(1); // 1-based for MUI Pagination
+  const rowsPerPage = 10;
+  const tableContainerRef = useRef(null);
 
   console.log({ selectedClass });
 
@@ -117,6 +129,7 @@ export default function FeesReportModal({ open, onClose }) {
       console.log("All divisions generated:", sortedDivisions);
       setDivisionOptions(sortedDivisions);
       setSelectedDivision("");
+      setPage(1);
       return;
     }
     const entry = classEntries.find(
@@ -136,6 +149,7 @@ export default function FeesReportModal({ open, onClose }) {
       console.log("Divisions for specific class:", divisions);
       setDivisionOptions(divisions);
       setSelectedDivision("");
+      setPage(1);
     }
   }, [selectedEntryId, classEntries]);
 
@@ -144,6 +158,7 @@ export default function FeesReportModal({ open, onClose }) {
     const fetchStudents = async () => {
       if (!selectedDivision) {
         setStudents([]);
+        setPage(1);
         return;
       }
       setLoading(true);
@@ -216,76 +231,139 @@ export default function FeesReportModal({ open, onClose }) {
     fetchStudents();
   }, [selectedEntryId, selectedDivision, branch?.id, year?.id]);
 
+  // Reset to first page when modal reopens or dataset changes significantly
+  useEffect(() => {
+    setPage(1);
+  }, [open]);
+
   // Report modal columns
-  const reportColumns = useMemo(
-    () => [
+  const reportColumns = useMemo(() => {
+    const baseColumns = [
       {
         field: "srNo",
         headerName: "Sr. No.",
-        flex: 0.5,
-        minWidth: 80,
+        width: 80,
+        headerAlign: "center",
+        align: "center",
       },
       {
         field: "name",
         headerName: "Student Name",
-        flex: 1.5,
-        minWidth: 200,
+        width: 200,
         renderCell: (params) => {
           const rollNumber = params.row.roll_number;
           return rollNumber ? `${params.value} (${rollNumber})` : params.value;
         },
       },
+    ];
+
+    const totalFeesColumns = [
       {
-        field: "totalAmount",
-        headerName: "Total Fees",
-        flex: 0.8,
-        minWidth: 120,
+        field: "totalTerm1",
+        headerName: "Term1",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
         renderCell: (params) =>
           `₹${params.value?.toLocaleString("en-IN") || 0}`,
       },
       {
-        field: "receivedAmount",
-        headerName: "Received",
-        flex: 0.8,
-        minWidth: 120,
+        field: "totalTerm2",
+        headerName: "Term2",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
         renderCell: (params) =>
           `₹${params.value?.toLocaleString("en-IN") || 0}`,
       },
       {
-        field: "pendingAmount",
-        headerName: "Pending",
-        flex: 0.8,
-        minWidth: 120,
+        field: "totalBooks",
+        headerName: "Books",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
         renderCell: (params) =>
           `₹${params.value?.toLocaleString("en-IN") || 0}`,
       },
-    ],
-    []
-  );
+    ];
+
+    const pendingFeesColumns = [
+      {
+        field: "pendingTerm1",
+        headerName: "Term1",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+      {
+        field: "pendingTerm2",
+        headerName: "Term2",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+      {
+        field: "pendingBooks",
+        headerName: "Books",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: (params) =>
+          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+      },
+    ];
+
+    return [...baseColumns, ...totalFeesColumns, ...pendingFeesColumns];
+  }, []);
 
   // Prepare students data with calculated amounts
   const studentsWithAmounts = useMemo(() => {
     return studentsWithSrNo.map((student) => {
       const terms = student.termSummary?.terms || {};
-      let totalAmount = 0;
-      let receivedAmount = 0;
-      let pendingAmount = 0;
 
-      // Calculate totals across all terms
-      Object.values(terms).forEach((term) => {
-        totalAmount += Number(term.total) || 0;
-        receivedAmount += Number(term.paid) || 0;
-        pendingAmount += Number(term.pending) || 0;
-      });
+      // Get individual term data
+      const term1Data = terms.term1 || { total: 0, paid: 0, pending: 0 };
+      const term2Data = terms.term2 || { total: 0, paid: 0, pending: 0 };
+      const booksData = terms.books || { total: 0, paid: 0, pending: 0 };
 
       return {
         ...student,
-        totalAmount,
-        receivedAmount,
-        pendingAmount,
+        // Total Fees breakdown
+        totalTerm1: Number(term1Data.total) || 0,
+        totalTerm2: Number(term2Data.total) || 0,
+        totalBooks: Number(booksData.total) || 0,
+        // Pending Fees breakdown
+        pendingTerm1: Number(term1Data.pending) || 0,
+        pendingTerm2: Number(term2Data.pending) || 0,
+        pendingBooks: Number(booksData.pending) || 0,
+        // Keep legacy totals for grand total calculations
+        totalAmount:
+          (Number(term1Data.total) || 0) +
+          (Number(term2Data.total) || 0) +
+          (Number(booksData.total) || 0),
+        receivedAmount:
+          (Number(term1Data.paid) || 0) +
+          (Number(term2Data.paid) || 0) +
+          (Number(booksData.paid) || 0),
+        pendingAmount:
+          (Number(term1Data.pending) || 0) +
+          (Number(term2Data.pending) || 0) +
+          (Number(booksData.pending) || 0),
       };
     });
   }, [studentsWithSrNo]);
+
+  // Pagination derivations
+  const totalItems = studentsWithAmounts.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = Math.min(startIndex + rowsPerPage, totalItems);
+  const pagedRows = studentsWithAmounts.slice(startIndex, endIndex);
 
   // Calculate grand totals for all students
   const grandTotals = useMemo(() => {
@@ -294,30 +372,42 @@ export default function FeesReportModal({ open, onClose }) {
         totalAmount: acc.totalAmount + (student.totalAmount || 0),
         receivedAmount: acc.receivedAmount + (student.receivedAmount || 0),
         pendingAmount: acc.pendingAmount + (student.pendingAmount || 0),
+        // Individual term totals
+        totalTerm1: acc.totalTerm1 + (student.totalTerm1 || 0),
+        totalTerm2: acc.totalTerm2 + (student.totalTerm2 || 0),
+        totalBooks: acc.totalBooks + (student.totalBooks || 0),
+        pendingTerm1: acc.pendingTerm1 + (student.pendingTerm1 || 0),
+        pendingTerm2: acc.pendingTerm2 + (student.pendingTerm2 || 0),
+        pendingBooks: acc.pendingBooks + (student.pendingBooks || 0),
       }),
-      { totalAmount: 0, receivedAmount: 0, pendingAmount: 0 }
+      {
+        totalAmount: 0,
+        receivedAmount: 0,
+        pendingAmount: 0,
+        totalTerm1: 0,
+        totalTerm2: 0,
+        totalBooks: 0,
+        pendingTerm1: 0,
+        pendingTerm2: 0,
+        pendingBooks: 0,
+      }
     );
   }, [studentsWithAmounts]);
 
   // Build report HTML string (used by Print)
   const buildReportHtml = useCallback(
     (rows) => {
-      const columns = [
-        { key: "srNo", title: "Sr. No." },
-        { key: "name", title: "Student Name" },
-        { key: "totalAmount", title: "Total Fees" },
-        { key: "receivedAmount", title: "Received" },
-        { key: "pendingAmount", title: "Pending" },
-      ];
-
       const htmlRows = (rows || [])
         .map((r) => {
           const vals = [
             r.srNo || "",
             r.roll_number ? `${r.name || ""} (${r.roll_number})` : r.name || "",
-            `₹${r.totalAmount?.toLocaleString("en-IN") || 0}`,
-            `₹${r.receivedAmount?.toLocaleString("en-IN") || 0}`,
-            `₹${r.pendingAmount?.toLocaleString("en-IN") || 0}`,
+            `₹${r.totalTerm1?.toLocaleString("en-IN") || 0}`,
+            `₹${r.totalTerm2?.toLocaleString("en-IN") || 0}`,
+            `₹${r.totalBooks?.toLocaleString("en-IN") || 0}`,
+            `₹${r.pendingTerm1?.toLocaleString("en-IN") || 0}`,
+            `₹${r.pendingTerm2?.toLocaleString("en-IN") || 0}`,
+            `₹${r.pendingBooks?.toLocaleString("en-IN") || 0}`,
           ].map((v) =>
             String(v)
               .replace(/&/g, "&amp;")
@@ -364,7 +454,20 @@ export default function FeesReportModal({ open, onClose }) {
         </div>
         <table>
           <thead>
-            <tr>${columns.map((c) => `<th>${c.title}</th>`).join("")}</tr>
+            <tr>
+              <th rowspan="2">Sr. No.</th>
+              <th rowspan="2">Student Name</th>
+              <th colspan="3" style="text-align: center;">Total Fees</th>
+              <th colspan="3" style="text-align: center;">Pending Fees</th>
+            </tr>
+            <tr>
+              <th>Term1</th>
+              <th>Term2</th>
+              <th>Books</th>
+              <th>Term1</th>
+              <th>Term2</th>
+              <th>Books</th>
+            </tr>
           </thead>
           <tbody>
             ${htmlRows}
@@ -372,13 +475,22 @@ export default function FeesReportModal({ open, onClose }) {
           <tfoot>
             <tr style="border-top: 2px solid #333; background: #f5f5f5;">
               <td colspan="2" style="font-weight: bold; text-align: right; padding: 8px;">Grand Total:</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalAmount.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalTerm1.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.receivedAmount.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalTerm2.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingAmount.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalBooks.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingTerm1.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingTerm2.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingBooks.toLocaleString(
                 "en-IN"
               )}</td>
             </tr>
@@ -395,9 +507,12 @@ export default function FeesReportModal({ open, onClose }) {
       yearLabel,
       reportClassLabel,
       reportDivisionLabel,
-      grandTotals.totalAmount,
-      grandTotals.receivedAmount,
-      grandTotals.pendingAmount,
+      grandTotals.totalTerm1,
+      grandTotals.totalTerm2,
+      grandTotals.totalBooks,
+      grandTotals.pendingTerm1,
+      grandTotals.pendingTerm2,
+      grandTotals.pendingBooks,
     ]
   );
 
@@ -417,8 +532,23 @@ export default function FeesReportModal({ open, onClose }) {
     }
   }, [buildReportHtml, studentsWithAmounts]);
 
+  // Removed scale-to-fit; we now use internal scroll inside the table container
+
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth={false}
+      maxWidth={false}
+      PaperProps={{
+        sx: {
+          width: "90vw",
+          height: "85vh",
+          maxWidth: "90vw",
+          maxHeight: "85vh",
+        },
+      }}
+    >
       <DialogTitle sx={{ pb: 1 }}>
         <Stack
           direction="row"
@@ -439,7 +569,15 @@ export default function FeesReportModal({ open, onClose }) {
           </Stack>
         </Stack>
       </DialogTitle>
-      <DialogContent dividers>
+      <DialogContent
+        dividers
+        sx={{
+          overflow: "hidden",
+          p: 2,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         {/* Filter chips summary */}
         <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
           <Chip size="small" label={`Branch: ${branchLabel}`} />
@@ -541,67 +679,127 @@ export default function FeesReportModal({ open, onClose }) {
           </Box>
         )}
 
-        {/* Live count hint above table */}
-        <Typography variant="caption" sx={{ mb: 1, color: "text.secondary" }}>
-          Showing {reportCount} result(s)
-        </Typography>
-
         {!loading && !error && selectedDivision && (
-          <div style={{ width: "100%", height: "60vh" }}>
-            <TableWrapper
-              columns={reportColumns}
-              rows={[
-                ...studentsWithAmounts,
-                // Add totals row
-                {
-                  id: "grand-total",
-                  srNo: "",
-                  roll_number: "",
-                  name: "Grand Total",
-                  totalAmount: grandTotals.totalAmount,
-                  receivedAmount: grandTotals.receivedAmount,
-                  pendingAmount: grandTotals.pendingAmount,
-                  isGrandTotal: true,
-                },
-              ]}
-              pagination={false}
-              hidePageSize={true}
-              enableExport={false}
-              initialState={{
-                sorting: { sortModel: [] },
-              }}
-              disableColumnSort={true}
-              getRowClassName={(params) =>
-                params.row.isGrandTotal ? "grand-total-row" : ""
-              }
+          <>
+            <Box
+              ref={tableContainerRef}
               sx={{
-                "& .grand-total-row": {
-                  backgroundColor: "#f5f5f5",
-                  fontWeight: "bold",
-                  borderTop: "2px solid #333",
-                  "& .MuiDataGrid-cell": {
-                    fontWeight: "bold",
-                  },
-                },
+                width: "100%",
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
               }}
-            />
-          </div>
+            >
+              <FeesReportTable
+                columns={reportColumns}
+                rows={[
+                  ...pagedRows,
+                  ...(currentPage === totalPages
+                    ? [
+                        {
+                          id: "grand-total",
+                          srNo: "",
+                          roll_number: "",
+                          name: "Grand Total",
+                          totalTerm1: grandTotals.totalTerm1,
+                          totalTerm2: grandTotals.totalTerm2,
+                          totalBooks: grandTotals.totalBooks,
+                          pendingTerm1: grandTotals.pendingTerm1,
+                          pendingTerm2: grandTotals.pendingTerm2,
+                          pendingBooks: grandTotals.pendingBooks,
+                          isGrandTotal: true,
+                        },
+                      ]
+                    : []),
+                ]}
+                getRowClassName={(params) =>
+                  params.row.isGrandTotal ? "grand-total-row" : ""
+                }
+              />
+            </Box>
+
+            {/* Pagination controls (moved inside content for consistency with Staff) */}
+            <Box
+              sx={{
+                mt: 2,
+                display: "flex",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <Box
+                sx={{
+                  ml: "auto",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1.5,
+                }}
+              >
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {totalItems === 0 ? 0 : startIndex + 1}–{endIndex} of{" "}
+                  {totalItems}
+                </Typography>
+                <IconButton
+                  size="small"
+                  color="inherit"
+                  disabled={currentPage <= 1}
+                  onClick={() => {
+                    if (currentPage > 1) setPage(currentPage - 1);
+                    if (tableContainerRef.current) {
+                      try {
+                        tableContainerRef.current.scrollTo({
+                          top: 0,
+                          behavior: "smooth",
+                        });
+                      } catch {
+                        tableContainerRef.current.scrollTop = 0;
+                      }
+                    }
+                  }}
+                >
+                  <ChevronLeftIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  color="inherit"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => {
+                    if (currentPage < totalPages) setPage(currentPage + 1);
+                    if (tableContainerRef.current) {
+                      try {
+                        tableContainerRef.current.scrollTo({
+                          top: 0,
+                          behavior: "smooth",
+                        });
+                      } catch {
+                        tableContainerRef.current.scrollTop = 0;
+                      }
+                    }
+                  }}
+                >
+                  <ChevronRightIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+          </>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={printReport}
-          disabled={
-            !selectedEntryId ||
-            !selectedDivision ||
-            studentsWithAmounts.length === 0
-          }
-        >
-          Print
-        </Button>
-        <Button onClick={onClose}>Close</Button>
+      <DialogActions sx={{ px: 2 }}>
+        <Box sx={{ ml: "auto", display: "flex", gap: 1 }}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={printReport}
+            disabled={
+              !selectedEntryId ||
+              !selectedDivision ||
+              studentsWithAmounts.length === 0
+            }
+          >
+            Print
+          </Button>
+          <Button onClick={onClose}>Close</Button>
+        </Box>
       </DialogActions>
     </Dialog>
   );

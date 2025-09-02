@@ -57,7 +57,7 @@ export const YearProvider = ({ children }) => {
       selected,
       setSelected,
       hasChosenYear,
-      refreshYears: loadYears,
+      loadYears,
       refreshActive: loadActive,
       loading,
       error,

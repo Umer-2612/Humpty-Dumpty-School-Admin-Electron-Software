@@ -246,6 +246,40 @@ const AddFeesModal = ({
     fetchNextReceipt();
   }, [open, data?.payment_type, setData]);
 
+  // Generate academic year months based on selected year's date range
+  const generateAcademicYearMonths = React.useMemo(() => {
+    if (!selectedYear?.start_date || !selectedYear?.end_date) {
+      return [];
+    }
+
+    const startDate = new Date(selectedYear.start_date);
+    const endDate = new Date(selectedYear.end_date);
+    const months = [];
+    
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+
+    let currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      const monthName = monthNames[currentDate.getMonth()];
+      const year = currentDate.getFullYear().toString().slice(-2); // Get last 2 digits of year
+      const monthLabel = `${monthName}-${year}`;
+      
+      months.push({
+        value: monthName, // Keep original month name as value for backend compatibility
+        label: monthLabel // Display format like "March-25"
+      });
+      
+      // Move to next month
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+    
+    return months;
+  }, [selectedYear?.start_date, selectedYear?.end_date]);
+
   // Load student's term summary when a student is selected or year changes
   React.useEffect(() => {
     const loadSummary = async () => {
@@ -513,24 +547,17 @@ const AddFeesModal = ({
                         helperText={errors?.month_year}
                         sx={{ bgcolor: "white" }}
                       >
-                        {[
-                          "January",
-                          "February",
-                          "March",
-                          "April",
-                          "May",
-                          "June",
-                          "July",
-                          "August",
-                          "September",
-                          "October",
-                          "November",
-                          "December",
-                        ].map((m) => (
-                          <MenuItem key={m} value={m}>
-                            {m}
+                        {generateAcademicYearMonths.length === 0 ? (
+                          <MenuItem disabled>
+                            Please select an academic year first
                           </MenuItem>
-                        ))}
+                        ) : (
+                          generateAcademicYearMonths.map((month) => (
+                            <MenuItem key={month.value} value={month.value}>
+                              {month.label}
+                            </MenuItem>
+                          ))
+                        )}
                       </TextField>
                     </Box>
                   </Box>

@@ -9,6 +9,7 @@ import GlobalStyles from "@mui/material/GlobalStyles";
 import Grid from "@mui/material/Grid";
 import Modal from "../../component/Modal";
 import { useBranch } from "../../context/useBranch";
+import logo from "../../assets/humpty_dumpty_logo.jpeg";
 
 // Helpers for booklet-like underlined fields
 const Label = ({ children }) => (
@@ -225,10 +226,23 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
                   sx={{
                     width: 56,
                     height: 56,
-                    border: "1px solid #222",
-                    bgcolor: "#f8f8f8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
-                />
+                >
+                  <Box
+                    component="img"
+                    src={logo}
+                    alt="Humpty Dumpty Logo"
+                    sx={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                </Box>
               </Grid>
               <Grid item xs={8}>
                 <Box

@@ -80,10 +80,46 @@ const Classes = () => {
         align: "center",
         type: "number",
       },
-      { field: "term1_fee", headerName: "Term 1", width: 120 },
-      { field: "term2_fee", headerName: "Term 2", width: 120 },
-      { field: "books_charge", headerName: "Books", width: 120 },
-      { field: "total_fees", headerName: "Total Fees", width: 140 },
+      {
+        field: "term1_fee",
+        headerName: "Term 1",
+        width: 120,
+        renderCell: (params) => {
+          const value = params.value;
+          if (!value || value === 0) return "₹0";
+          return `₹${Number(value).toLocaleString("en-IN")}`;
+        },
+      },
+      {
+        field: "term2_fee",
+        headerName: "Term 2",
+        width: 120,
+        renderCell: (params) => {
+          const value = params.value;
+          if (!value || value === 0) return "₹0";
+          return `₹${Number(value).toLocaleString("en-IN")}`;
+        },
+      },
+      {
+        field: "books_charge",
+        headerName: "Books",
+        width: 120,
+        renderCell: (params) => {
+          const value = params.value;
+          if (!value || value === 0) return "₹0";
+          return `₹${Number(value).toLocaleString("en-IN")}`;
+        },
+      },
+      {
+        field: "total_fees",
+        headerName: "Total Fees",
+        width: 140,
+        renderCell: (params) => {
+          const value = params.value;
+          if (!value || value === 0) return "₹0";
+          return `₹${Number(value).toLocaleString("en-IN")}`;
+        },
+      },
       {
         field: "actions",
         headerName: "Actions",

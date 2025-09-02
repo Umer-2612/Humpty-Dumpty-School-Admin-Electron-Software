@@ -17,7 +17,6 @@ import HomeIcon from "@mui/icons-material/Home";
 import PersonIcon from "@mui/icons-material/Person";
 import LinearProgress from "@mui/material/LinearProgress";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import MonthlyFeeTracker from "../../component/MonthlyFeeTracker";
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="down" ref={ref} {...props} />;
@@ -300,7 +299,7 @@ export default function ViewStudentModal({
             <Stack direction="row" spacing={2}>
               <Box sx={{ flex: 1 }}>
                 <InfoRow
-                  label="Parent Contact 1"
+                  label="Father's Contact"
                   value={s.parents_contact1}
                   link={
                     s.parents_contact1 ? `tel:${s.parents_contact1}` : undefined
@@ -309,7 +308,7 @@ export default function ViewStudentModal({
               </Box>
               <Box sx={{ flex: 1 }}>
                 <InfoRow
-                  label="Parent Contact 2"
+                  label="Mother's Contact"
                   value={s.parents_contact2}
                   link={
                     s.parents_contact2 ? `tel:${s.parents_contact2}` : undefined
@@ -425,15 +424,6 @@ export default function ViewStudentModal({
             </Box>
           </Section>
 
-          {/* Monthly Fee Tracker */}
-          {s.id && (
-            <MonthlyFeeTracker
-              studentId={s.id}
-              onError={(error) =>
-                console.error("Monthly fee tracker error:", error)
-              }
-            />
-          )}
         </Stack>
 
         <Box sx={{ textAlign: "right", mt: 1 }}>

@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("add-academic-year", payload),
   updateAcademicYear: (payload) =>
     ipcRenderer.invoke("update-academic-year", payload),
+  deleteAcademicYear: (id) =>
+    ipcRenderer.invoke("delete-academic-year", id),
   setActiveAcademicYear: (id) =>
     ipcRenderer.invoke("set-active-academic-year", id),
   getActiveAcademicYear: () => ipcRenderer.invoke("get-active-academic-year"),

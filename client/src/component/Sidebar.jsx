@@ -26,6 +26,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   LibraryBooks as LibraryBooksIcon,
+  CalendarToday as CalendarIcon,
 } from "@mui/icons-material";
 import YearSwitcher from "./YearSwitcher";
 

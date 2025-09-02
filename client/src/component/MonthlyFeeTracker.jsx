@@ -65,20 +65,42 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
     }
   };
 
-  const getMonthChipColor = (month) => {
-    const status = monthsStatus[month];
-    if (!status) return grey[300];
-    return status.paid ? green[500] : grey[300];
+  // Helper function to get the latest paid month index (0-11)
+  const getLatestPaidMonthIndex = () => {
+    for (let i = months.length - 1; i >= 0; i--) {
+      const month = months[i];
+      const status = monthsStatus[month];
+      if (status?.paid) {
+        return i;
+      }
+    }
+    return -1; // No months paid
   };
 
-  const getMonthIcon = (month) => {
+  // Helper function to determine if a month should be marked as paid based on sequential logic
+  const shouldMonthBePaid = (monthIndex) => {
+    const latestPaidIndex = getLatestPaidMonthIndex();
+    return monthIndex <= latestPaidIndex;
+  };
+
+  const getMonthChipColor = (month, monthIndex) => {
     const status = monthsStatus[month];
-    if (!status) return <PendingIcon fontSize="small" />;
-    return status.paid ? (
-      <CheckCircleIcon fontSize="small" />
-    ) : (
-      <PendingIcon fontSize="small" />
-    );
+    const shouldBePaid = shouldMonthBePaid(monthIndex);
+
+    if (status?.paid || shouldBePaid) {
+      return green[500];
+    }
+    return grey[300];
+  };
+
+  const getMonthIcon = (month, monthIndex) => {
+    const status = monthsStatus[month];
+    const shouldBePaid = shouldMonthBePaid(monthIndex);
+
+    if (status?.paid || shouldBePaid) {
+      return <CheckCircleIcon fontSize="small" />;
+    }
+    return <PendingIcon fontSize="small" />;
   };
 
   const formatAmount = (amount) => {
@@ -93,7 +115,8 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
   };
 
   const getPaidMonthsCount = () => {
-    return Object.values(monthsStatus).filter((status) => status?.paid).length;
+    const latestPaidIndex = getLatestPaidMonthIndex();
+    return latestPaidIndex >= 0 ? latestPaidIndex + 1 : 0;
   };
 
   if (loading) {
@@ -142,9 +165,11 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
 
       {/* Monthly Status Grid */}
       <Grid container spacing={1.5}>
-        {months.map((month) => {
+        {months.map((month, index) => {
           const status = monthsStatus[month];
           const isPaid = status?.paid || false;
+          const shouldBePaid = shouldMonthBePaid(index);
+          const displayAsPaid = isPaid || shouldBePaid;
           const amount = status?.amount || 0;
           const paidDate = status?.paid_date;
 
@@ -152,17 +177,17 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
             <Grid item xs={6} sm={4} md={3} key={month}>
               <Tooltip
                 title={
-                  isPaid
+                  displayAsPaid
                     ? `Paid: ${formatAmount(amount)}${
                         paidDate ? ` on ${paidDate}` : ""
-                      }`
+                      }${shouldBePaid && !isPaid ? " (Sequential)" : ""}`
                     : "Not paid yet"
                 }
                 arrow
                 placement="top"
               >
                 <Chip
-                  icon={getMonthIcon(month)}
+                  icon={getMonthIcon(month, index)}
                   label={
                     <Box
                       sx={{
@@ -177,7 +202,7 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
                       >
                         {month.substring(0, 3)}
                       </Typography>
-                      {isPaid && (
+                      {displayAsPaid && (
                         <Typography
                           variant="caption"
                           sx={{ fontSize: "0.65rem", lineHeight: 1 }}
@@ -190,17 +215,17 @@ const MonthlyFeeTracker = ({ studentId, onError }) => {
                   sx={{
                     width: "100%",
                     height: 48,
-                    backgroundColor: getMonthChipColor(month),
-                    color: isPaid ? "white" : grey[600],
+                    backgroundColor: getMonthChipColor(month, index),
+                    color: displayAsPaid ? "white" : grey[600],
                     fontWeight: 600,
-                    border: isPaid
+                    border: displayAsPaid
                       ? `2px solid ${green[600]}`
                       : `1px solid ${grey[400]}`,
                     "&:hover": {
-                      backgroundColor: isPaid ? green[600] : grey[400],
+                      backgroundColor: displayAsPaid ? green[600] : grey[400],
                     },
                     "& .MuiChip-icon": {
-                      color: isPaid ? "white" : grey[600],
+                      color: displayAsPaid ? "white" : grey[600],
                     },
                   }}
                 />

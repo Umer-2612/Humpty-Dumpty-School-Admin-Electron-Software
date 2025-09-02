@@ -29,6 +29,7 @@ let listClassesByBranch, addClass, updateClass, deleteClass;
 let listAcademicYears,
   addAcademicYear,
   updateAcademicYear,
+  deleteAcademicYear,
   setActiveAcademicYear,
   getActiveAcademicYear;
 
@@ -184,6 +185,15 @@ function createWindow() {
     }
   });
 
+  ipcMain.handle("delete-academic-year", async (event, id) => {
+    try {
+      return await deleteAcademicYear(id);
+    } catch (error) {
+      console.error("[main.js] Error in 'delete-academic-year':", error);
+      return { success: false, error: error.message };
+    }
+  });
+
   const startURL = app.isPackaged
     ? `file://${path.join(__dirname, "client/dist/index.html")}`
     : "http://localhost:5173";
@@ -242,6 +252,7 @@ app.whenReady().then(() => {
       listAcademicYears,
       addAcademicYear,
       updateAcademicYear,
+      deleteAcademicYear,
       setActiveAcademicYear,
       getActiveAcademicYear,
     } = require("./server/academic_years"));

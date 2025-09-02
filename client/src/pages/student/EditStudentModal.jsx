@@ -46,6 +46,8 @@ const EditStudentModal = ({
       setForm({
         name: student.name || "",
         roll_number: student.roll_number || "",
+        class_id: student.class_id || "",
+        shift_id: student.shift_id || "",
         division: student.division || "",
         parents_contact1: student.parents_contact1 || "",
         parents_contact2: student.parents_contact2 || "",
@@ -82,9 +84,6 @@ const EditStudentModal = ({
         newErrors.class_id = "Class is required";
       }
 
-      if (!form.shift_id) {
-        newErrors.shift_id = "Shift is required";
-      }
     }
 
     // Step 1 validation

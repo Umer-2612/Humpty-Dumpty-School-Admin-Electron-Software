@@ -363,25 +363,22 @@ const Staff = () => {
     }
 
     return filteredStudents.map((r, idx) => {
-      const classObj = classesById.get(String(r.class_id));
+      const classId = r.class_id || r.classId;
+      const classObj = classesById.get(String(classId || ""));
       const className =
         r.class_name || classObj?.name || classObj?.class_name || "";
+      const shiftId = r.shift_id || r.shiftId;
+      const s = shiftsById.get(String(shiftId || ""));
+      const shiftName = r.shift_name || s?.shift_name || s?.name || "";
       const class_display = className
-        ? `${className}${r.division ? ` (${r.division})` : ""}`
+        ? `${className}${shiftName ? ` - ${shiftName}` : ""}${
+            r.division ? ` (${r.division})` : ""
+          }`
         : className;
-      const s = shiftsById.get(String(r.shift_id));
-      const time =
-        s && s.start_time && s.end_time
-          ? `${s.start_time} - ${s.end_time}`
-          : s?.time || "";
-      const shift_display = s
-        ? `${s.name || s.shift_name || ""}${time ? ` (${time})` : ""}`
-        : "";
       return {
         ...r,
         srNo: idx + 1,
         class_display,
-        shift_display,
       };
     });
   }, [students, selectedTeacher, classesById, shiftsById]);
@@ -408,7 +405,6 @@ const Staff = () => {
           r.parents_contact1 || "",
           r.parents_contact2 || "",
           r.class_display,
-          r.shift_display,
         ].map((v) =>
           String(v || "")
             .replace(/&/g, "&amp;")
@@ -444,7 +440,7 @@ const Staff = () => {
         </div>
       </div>
       <table>
-        <thead><tr><th>Sr No</th><th>Name</th><th>Parent Contact 1</th><th>Parent Contact 2</th><th>Class</th><th>Shift</th></tr></thead>
+        <thead><tr><th>Sr No</th><th>Name</th><th>Parent Contact 1</th><th>Parent Contact 2</th><th>Class</th></tr></thead>
         <tbody>${htmlRows}</tbody>
       </table>
     </body></html>`;
@@ -596,6 +592,10 @@ const Staff = () => {
               initialState={{
                 sorting: { sortModel: [{ field: "srNo", sort: "asc" }] },
               }}
+              pagination
+              pageSize={10}
+              pageSizeOptions={[10]}
+              hidePageSize
             />
           )}
         </div>
@@ -719,15 +719,10 @@ const Staff = () => {
                   flex: 0.8,
                   minWidth: 120,
                 },
-                {
-                  field: "shift_display",
-                  headerName: "Shift",
-                  flex: 0.8,
-                  minWidth: 120,
-                },
               ]}
-              pageSize={reportRows.length || 10}
-              pagination={false}
+              pagination
+              pageSize={10}
+              pageSizeOptions={[10]}
               hidePageSize
             />
           </div>

@@ -192,13 +192,13 @@ const Students = () => {
       },
       {
         field: "parents_contact1",
-        headerName: "Parent Contact 1",
+        headerName: "Father's Contact",
         flex: 0.8,
         minWidth: 140,
       },
       {
         field: "parents_contact2",
-        headerName: "Parent Contact 2",
+        headerName: "Mother's Contact",
         flex: 0.8,
         minWidth: 140,
       },
@@ -218,8 +218,8 @@ const Students = () => {
       const columns = [
         { key: "srNo", title: "Sr No" },
         { key: "name", title: "Student Name" },
-        { key: "parents_contact1", title: "Parent Contact 1" },
-        { key: "parents_contact2", title: "Parent Contact 2" },
+        { key: "parents_contact1", title: "Father's Contact" },
+        { key: "parents_contact2", title: "Mother's Contact" },
         { key: "class_name", title: "Class" },
       ];
 
@@ -414,7 +414,7 @@ const Students = () => {
       },
       {
         field: "parents_contact1",
-        headerName: "Parent Contact 1",
+        headerName: "Father's Contact",
         flex: 0.8,
         minWidth: 150,
         renderCell: (params) => (
@@ -437,7 +437,7 @@ const Students = () => {
       },
       {
         field: "parents_contact2",
-        headerName: "Parent Contact 2",
+        headerName: "Mother's Contact",
         flex: 0.8,
         minWidth: 150,
         renderCell: (params) => (
@@ -1102,7 +1102,9 @@ const Students = () => {
             <TableWrapper
               columns={reportColumns}
               rows={reportFiltered}
-              pagination={false}
+              pagination={true}
+              pageSize={10}
+              pageSizeOptions={[10]}
               hidePageSize={true}
               enableExport={false}
               initialState={{

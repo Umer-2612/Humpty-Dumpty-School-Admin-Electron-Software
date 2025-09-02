@@ -29,15 +29,20 @@ export default function TableWrapper({
   hidePageSize = false,
   ...props
 }) {
+  const MAX_PAGE_SIZE = 100; // MUI X MIT limit
+  const safePageSize = Math.min(pageSize || 10, MAX_PAGE_SIZE);
+  const safePageSizeOptions = (Array.isArray(pageSizeOptions) ? pageSizeOptions : [5, 10, 25, 50]).filter(
+    (n) => n > 0 && n <= MAX_PAGE_SIZE
+  );
   const [selectionModel, setSelectionModel] = useState([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportOnlySelected, setExportOnlySelected] = useState(false);
   const [selectedFields, setSelectedFields] = useState(null); // null = use visible
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize });
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: safePageSize });
 
   // Keep internal paginationModel in sync with pageSize prop
   useEffect(() => {
-    setPaginationModel((prev) => ({ ...prev, pageSize }));
+    setPaginationModel((prev) => ({ ...prev, pageSize: Math.min(pageSize || 10, MAX_PAGE_SIZE) }));
   }, [pageSize]);
 
   const isExportable = (c) =>
@@ -158,10 +163,10 @@ export default function TableWrapper({
       <DataGrid
         rows={rows}
         columns={columns}
-        pageSizeOptions={hidePageSize ? [] : pageSizeOptions}
+        pageSizeOptions={pagination ? (hidePageSize ? [] : safePageSizeOptions) : []}
         pagination={pagination}
-        paginationModel={paginationModel}
-        onPaginationModelChange={(model) => setPaginationModel(model)}
+        paginationModel={pagination ? paginationModel : undefined}
+        onPaginationModelChange={pagination ? (model) => setPaginationModel(model) : undefined}
         initialState={{
           sorting: { sortModel: [{ field: "id", sort: "asc" }] },
         }}

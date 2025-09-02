@@ -141,7 +141,46 @@ const inferFeeContext = (
   }
 };
 
+// Helper function to get month index (0-11)
+const getMonthIndex = (monthName) => {
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  return months.indexOf(monthName);
+};
+
+// Helper function to get month name from index
+const getMonthName = (index) => {
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  return months[index];
+};
+
 // Update student's months_paid tracking when fee is collected
+// Implements sequential logic: if paid up to month X, all previous months are also marked as paid
 const updateStudentMonthsPaid = (
   studentId,
   monthYear,
@@ -163,12 +202,39 @@ const updateStudentMonthsPaid = (
         monthsPaid = {};
       }
 
-      // Add or update the month entry
-      monthsPaid[monthYear] = {
-        amount: (monthsPaid[monthYear]?.amount || 0) + amount,
-        paid_date: new Date().toISOString().split("T")[0],
-        status: "paid",
-      };
+      // Get the target month index
+      const targetMonthIndex = getMonthIndex(monthYear);
+      if (targetMonthIndex === -1) {
+        // Invalid month name, just add as-is for backward compatibility
+        monthsPaid[monthYear] = {
+          amount: (monthsPaid[monthYear]?.amount || 0) + amount,
+          paid_date: new Date().toISOString().split("T")[0],
+          status: "paid",
+        };
+      } else {
+        // Sequential logic: mark all months from January up to target month as paid
+        const currentDate = new Date().toISOString().split("T")[0];
+
+        for (let i = 0; i <= targetMonthIndex; i++) {
+          const monthName = getMonthName(i);
+
+          if (!monthsPaid[monthName]) {
+            // Mark month as paid with minimal amount if not already paid
+            monthsPaid[monthName] = {
+              amount: i === targetMonthIndex ? amount : 0,
+              paid_date: currentDate,
+              status: "paid",
+            };
+          } else if (i === targetMonthIndex) {
+            // Add to existing amount for the target month
+            monthsPaid[monthName].amount =
+              (monthsPaid[monthName].amount || 0) + amount;
+            monthsPaid[monthName].paid_date = currentDate;
+            monthsPaid[monthName].status = "paid";
+          }
+          // Previous months remain as they are if already paid
+        }
+      }
 
       // Update the database
       const updateSql = `UPDATE students SET months_paid = ? WHERE id = ?`;
@@ -802,7 +868,12 @@ const getStudentsForFees = (branchId, academicYearId, callback) => {
 
   db.all(
     query,
-    [branchId, academicYearId ?? null, academicYearId ?? null, academicYearId ?? null],
+    [
+      branchId,
+      academicYearId ?? null,
+      academicYearId ?? null,
+      academicYearId ?? null,
+    ],
     (err, rows) => {
       if (err) {
         console.error("🔴 [BACKEND] Error fetching students for fees:", err);

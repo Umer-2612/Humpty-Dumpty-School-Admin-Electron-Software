@@ -269,10 +269,10 @@ const StudentForm = ({
         />
       </Grid>
 
-      {/* Row 2: Parent Contact 1 | Parent Contact 2 */}
+      {/* Row 2: Father's Contact | Mother's Contact */}
       <Grid item xs={12} md={5.8}>
         <TextField
-          label="Parent Contact 1"
+          label="Father's Contact"
           name="parents_contact1"
           value={form.parents_contact1}
           onChange={handleInputChange}
@@ -293,7 +293,7 @@ const StudentForm = ({
       </Grid>
       <Grid item xs={12} md={5.8}>
         <TextField
-          label="Parent Contact 2"
+          label="Mother's Contact"
           name="parents_contact2"
           value={form.parents_contact2}
           onChange={handleInputChange}

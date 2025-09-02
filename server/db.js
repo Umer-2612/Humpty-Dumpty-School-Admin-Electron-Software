@@ -250,12 +250,15 @@ db.serialize(() => {
   db.get("SELECT COUNT(*) as count FROM academic_years", (err, row) => {
     if (!err && row && row.count === 0) {
       const now = new Date();
+      // Academic year runs from March to April (next year)
+      // If current month is March or later, we're in the current academic year
+      // If current month is before March, we're in the previous academic year
       const startYear =
-        now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        now.getMonth() >= 2 ? now.getFullYear() : now.getFullYear() - 1; // March is month 2 (0-indexed)
       const endYear = startYear + 1;
       const name = `${startYear}-${String(endYear).slice(-2)}`;
-      const start_date = `${startYear}-04-01`;
-      const end_date = `${endYear}-03-31`;
+      const start_date = `${startYear}-03-01`; // March 1st
+      const end_date = `${endYear}-04-30`; // April 30th next year
 
       db.run(
         `INSERT INTO academic_years (name, start_date, end_date, is_active) VALUES (?, ?, ?, 1)`,
