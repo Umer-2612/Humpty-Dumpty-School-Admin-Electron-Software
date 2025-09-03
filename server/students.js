@@ -63,6 +63,112 @@ function getStudents(branch_id, academicYearId = null) {
   });
 }
 
+// Get students filtered by teacher assignments for staff reports
+function getStudentsByTeacher(branch_id, academicYearId = null, teacherId = null, classId = null, shiftName = null, division = null) {
+  console.log(
+    "[server/students.js] getStudentsByTeacher() called",
+    `branch_id=${branch_id}`,
+    `year=${academicYearId}`,
+    `teacher=${teacherId}`,
+    `class=${classId}`,
+    `shift=${shiftName}`,
+    `division=${division}`
+  );
+  
+  return new Promise((resolve, reject) => {
+    let query = `
+      SELECT DISTINCT
+        s.id,
+        s.name,
+        s.roll_number,
+        s.class_id,
+        s.academic_year_id,
+        s.total_fees,
+        s.pending_fees,
+        s.division,
+        s.parents_contact1,
+        s.parents_contact2,
+        s.admission_date,
+        s.gender,
+        s.mother_name,
+        s.father_name,
+        s.fee_scholarship,
+        s.birth_place,
+        s.religion,
+        s.address,
+        s.created_at,
+        c.name as class_name,
+        c.shift_name,
+        b.name as branch_name,
+        b.id as branch_id
+      FROM students s
+      JOIN classes c ON s.class_id = c.id
+      JOIN branches b ON c.branch_id = b.id
+    `;
+    
+    let params = [];
+    const conditions = [];
+    
+    // Always filter by branch if provided
+    if (branch_id) {
+      conditions.push("b.id = ?");
+      params.push(branch_id);
+    }
+    
+    // Filter by academic year if provided
+    if (academicYearId) {
+      conditions.push("s.academic_year_id = ?");
+      params.push(academicYearId);
+    }
+    
+    // If teacher is specified, join with teacher assignments
+    if (teacherId) {
+      query += `
+        JOIN teacher_assignments ta ON (
+          ta.class_id = s.class_id 
+          AND ta.staff_id = ?
+          AND (ta.division = '' OR ta.division IS NULL OR ta.division = s.division)
+        )
+      `;
+      params.push(teacherId);
+    }
+    
+    // Filter by specific class if provided
+    if (classId) {
+      conditions.push("s.class_id = ?");
+      params.push(classId);
+    }
+    
+    // Filter by shift name if provided
+    if (shiftName) {
+      conditions.push("c.shift_name = ?");
+      params.push(shiftName);
+    }
+    
+    // Filter by division if provided
+    if (division) {
+      conditions.push("s.division = ?");
+      params.push(division);
+    }
+    
+    if (conditions.length) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
+    }
+    
+    query += " ORDER BY s.created_at DESC";
+    
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        console.error("[server/students.js] Error fetching students by teacher:", err);
+        reject(err);
+      } else {
+        console.log("[server/students.js] Students by teacher found:", rows.length);
+        resolve(rows);
+      }
+    });
+  });
+}
+
 // Get a single student by ID (includes class/branch info)
 function getStudentById(id) {
   console.log("[server/students.js] getStudentById() called with id=", id);
@@ -610,6 +716,7 @@ function getNextRollNumberByEntry(
 
 module.exports = {
   getStudents,
+  getStudentsByTeacher,
   searchStudents,
   addStudent,
   getNextRollNumber,

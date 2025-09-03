@@ -2,11 +2,17 @@ const db = require("./db");
 
 // Get all staff with their assignments (for teachers)
 function getStaff() {
+  console.log("[server/staff.js] getStaff() called");
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT id, name, contact, staff_type, role FROM staff ORDER BY name`,
       (err, staffList) => {
-        if (err) return reject(err);
+        if (err) {
+          console.error("[server/staff.js] Error fetching staff:", err);
+          return reject(err);
+        }
+        console.log("[server/staff.js] Found staff records:", staffList.length);
+        console.log("[server/staff.js] Teachers found:", staffList.filter(s => s.staff_type === "teacher").length);
 
         // Get teacher assignments
         db.all(
@@ -36,7 +42,10 @@ function getStaff() {
               }
             });
 
-            resolve(Object.values(staffMap));
+            const result = Object.values(staffMap);
+            console.log("[server/staff.js] Returning staff with assignments:", result.length, "records");
+            console.log("[server/staff.js] Teachers with assignments:", result.filter(s => s.staff_type === "teacher").length);
+            resolve(result);
           }
         );
       }
@@ -162,6 +171,61 @@ function updateStaff(staffData) {
   });
 }
 
+// Search staff by name, contact, or role
+function searchStaff(query) {
+  console.log("[server/staff.js] searchStaff() called with query:", query);
+  return new Promise((resolve, reject) => {
+    const searchTerm = `%${query}%`;
+    db.all(
+      `SELECT id, name, contact, staff_type, role FROM staff 
+       WHERE name LIKE ? OR contact LIKE ? OR role LIKE ? 
+       ORDER BY name`,
+      [searchTerm, searchTerm, searchTerm],
+      (err, staffList) => {
+        if (err) {
+          console.error("[server/staff.js] Error in searchStaff:", err);
+          return reject(err);
+        }
+        console.log("[server/staff.js] Found staff records:", staffList.length);
+
+        // Get teacher assignments for search results
+        db.all(
+          `SELECT ta.staff_id, ta.class_id, ta.division, c.name as class_name, c.shift_name
+           FROM teacher_assignments ta
+           LEFT JOIN classes c ON ta.class_id = c.id`,
+          (err2, assignments) => {
+            if (err2) return reject(err2);
+
+            // Group assignments by staff
+            const staffMap = {};
+            staffList.forEach((s) => {
+              staffMap[s.id] = {
+                ...s,
+                assignments: [],
+              };
+            });
+
+            assignments.forEach((a) => {
+              if (staffMap[a.staff_id]) {
+                staffMap[a.staff_id].assignments.push({
+                  class_id: a.class_id,
+                  class_name: a.class_name,
+                  shift_name: a.shift_name,
+                  division: a.division || "",
+                });
+              }
+            });
+
+            const result = Object.values(staffMap);
+            console.log("[server/staff.js] Returning search results:", result.length, "records");
+            resolve(result);
+          }
+        );
+      }
+    );
+  });
+}
+
 // Delete staff
 function deleteStaff(id) {
   return new Promise((resolve, reject) => {
@@ -187,5 +251,6 @@ module.exports = {
   getStaffById,
   addStaff,
   updateStaff,
+  searchStaff,
   deleteStaff,
 };

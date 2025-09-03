@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getBranches: () => ipcRenderer.invoke("get-branches"),
   getStudents: (branch_id, academicYearId = null) =>
     ipcRenderer.invoke("get-students", branch_id, academicYearId),
+  getStudentsByTeacher: (branch_id, academicYearId = null, teacherId = null, classId = null, shiftName = null, division = null) =>
+    ipcRenderer.invoke("get-students-by-teacher", branch_id, academicYearId, teacherId, classId, shiftName, division),
   getStudentById: (id) => ipcRenderer.invoke("get-student-by-id", id),
   searchStudents: (branch_id, query) =>
     ipcRenderer.invoke("search-students", branch_id, query, null),
@@ -24,6 +26,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getStaffById: (id) => ipcRenderer.invoke("get-staff-by-id", id),
   addStaff: (staffData) => ipcRenderer.invoke("add-staff", staffData),
   updateStaff: (staffData) => ipcRenderer.invoke("update-staff", staffData),
+  searchStaff: (query) => ipcRenderer.invoke("search-staff", query),
   deleteStaff: (id) => ipcRenderer.invoke("delete-staff", id),
   // Legacy teacher methods for backward compatibility
   getTeachers: () => ipcRenderer.invoke("get-teachers"),

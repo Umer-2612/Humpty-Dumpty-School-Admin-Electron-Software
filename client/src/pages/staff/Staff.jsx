@@ -26,6 +26,12 @@ import EditStaffModal from "./EditStaffModal";
 import DeleteStaffModal from "./DeleteStaffModal";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider.jsx";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const SETTINGS_KEY = "staffTableSettings";
 
@@ -33,6 +39,10 @@ const Staff = () => {
   const { selected: activeBranch } = useBranch() || {};
   const { selected: selectedYear } = useYear() || {};
   const [staff, setStaff] = useState([]);
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const searchTimer = React.useRef(null);
   const [classes, setClasses] = useState([]);
   const [shifts, setShifts] = useState([]);
   const [classEntries, setClassEntries] = useState([]);
@@ -50,10 +60,30 @@ const Staff = () => {
   // Report state
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTeacherId, setReportTeacherId] = useState("");
+  const [reportClassId, setReportClassId] = useState("");
+  const [reportDivision, setReportDivision] = useState("");
   const [students, setStudents] = useState([]);
 
   // Add serial numbers to staff data
-  const staffWithSrNo = staff.map((item, index) => ({
+  const displayedBase = useMemo(() => {
+    const useServer = (search || "").trim().length >= 2;
+    const result = useServer ? searchResults : staff;
+    console.log(
+      "[Staff] displayedBase - useServer:",
+      useServer,
+      "search:",
+      search,
+      "searchResults:",
+      searchResults,
+      "staff:",
+      staff,
+      "result:",
+      result
+    );
+    return result;
+  }, [search, searchResults, staff]);
+
+  const staffWithSrNo = displayedBase.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
@@ -259,6 +289,11 @@ const Staff = () => {
     setLoading(true);
     try {
       const data = await window.electronAPI.getStaff();
+      console.log("[Staff] Fetched staff data:", data);
+      console.log(
+        "[Staff] Teachers in data:",
+        data?.filter((s) => s.staff_type === "teacher")
+      );
       setStaff(data);
     } catch (err) {
       setError("Failed to fetch staff", err);
@@ -266,6 +301,37 @@ const Staff = () => {
       setLoading(false);
     }
   };
+
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+
+    const q = (search || "").trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    searchTimer.current = setTimeout(async () => {
+      try {
+        setSearching(true);
+        console.log("[Staff] Searching for:", q);
+        const res = await window.electronAPI.searchStaff(q);
+        console.log("[Staff] Search results:", res);
+        setSearchResults(Array.isArray(res) ? res : []);
+      } catch (e) {
+        console.error("[Staff] search error", e);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search]);
 
   useEffect(() => {
     fetchStaff();
@@ -288,7 +354,7 @@ const Staff = () => {
     })();
   }, []);
 
-  // Load students when opening report
+  // Load students when opening report or filters change
   useEffect(() => {
     const load = async () => {
       if (!reportOpen) return;
@@ -296,7 +362,25 @@ const Staff = () => {
       if (!branchId) return;
       try {
         const ayId = selectedYear?.id || null;
-        const list = await window.electronAPI.getStudents(branchId, ayId);
+
+        // Parse class and shift from reportClassId
+        let classId = null;
+        let shiftName = null;
+        if (reportClassId) {
+          const [cId, sName] = reportClassId.split("_");
+          classId = cId;
+          shiftName = sName || null;
+        }
+
+        // Use new API that supports teacher/class/division filtering
+        const list = await window.electronAPI.getStudentsByTeacher(
+          branchId,
+          ayId,
+          reportTeacherId || null,
+          classId,
+          shiftName,
+          reportDivision || null
+        );
         setStudents(Array.isArray(list) ? list : []);
       } catch (e) {
         console.error("Failed to load students for report:", e);
@@ -304,7 +388,14 @@ const Staff = () => {
       }
     };
     load();
-  }, [reportOpen, activeBranch?.id, selectedYear?.id]);
+  }, [
+    reportOpen,
+    activeBranch?.id,
+    selectedYear?.id,
+    reportTeacherId,
+    reportClassId,
+    reportDivision,
+  ]);
 
   const shiftsById = useMemo(() => {
     const map = new Map();
@@ -325,6 +416,57 @@ const Staff = () => {
         .find((t) => String(t.id) === String(reportTeacherId)),
     [staff, reportTeacherId]
   );
+
+  // Get assigned classes for selected teacher
+  const teacherAssignedClasses = useMemo(() => {
+    if (!selectedTeacher || !Array.isArray(selectedTeacher.assignments)) {
+      return [];
+    }
+
+    // Create unique class options from assignments
+    const classMap = new Map();
+    selectedTeacher.assignments.forEach((assignment) => {
+      const classId = assignment.class_id;
+      const className = assignment.class_name || `Class #${classId}`;
+      const shiftName = assignment.shift_name || "";
+      const division = assignment.division || "";
+
+      const key = `${classId}_${shiftName}`;
+      const displayName = `${className}${shiftName ? ` - ${shiftName}` : ""}`;
+
+      if (!classMap.has(key)) {
+        classMap.set(key, {
+          class_id: classId,
+          class_name: className,
+          shift_name: shiftName,
+          display_name: displayName,
+          divisions: [],
+        });
+      }
+
+      if (division && !classMap.get(key).divisions.includes(division)) {
+        classMap.get(key).divisions.push(division);
+      }
+    });
+
+    return Array.from(classMap.values()).map((cls) => ({
+      ...cls,
+      divisions: cls.divisions.sort(),
+    }));
+  }, [selectedTeacher]);
+
+  // Get available divisions for selected class
+  const availableDivisions = useMemo(() => {
+    if (!reportClassId || !selectedTeacher) {
+      return [];
+    }
+
+    const selectedClass = teacherAssignedClasses.find(
+      (cls) => `${cls.class_id}_${cls.shift_name}` === reportClassId
+    );
+
+    return selectedClass ? selectedClass.divisions : [];
+  }, [reportClassId, teacherAssignedClasses, selectedTeacher]);
 
   const reportRows = useMemo(() => {
     if (!Array.isArray(students)) return [];
@@ -362,6 +504,28 @@ const Staff = () => {
       }
     }
 
+    // Further filter by specific class if selected
+    if (reportClassId) {
+      const [classId, shiftName] = reportClassId.split("_");
+      filteredStudents = filteredStudents.filter((stu) => {
+        const sClassId = String(stu.class_id || stu.classId || "");
+        const sShiftName = stu.shift_name || "";
+
+        const classMatch = sClassId === classId;
+        const shiftMatch = !shiftName || shiftName === sShiftName;
+
+        return classMatch && shiftMatch;
+      });
+    }
+
+    // Further filter by division if selected
+    if (reportDivision) {
+      filteredStudents = filteredStudents.filter((stu) => {
+        const sDiv = stu.division || "";
+        return sDiv === reportDivision;
+      });
+    }
+
     return filteredStudents.map((r, idx) => {
       const classId = r.class_id || r.classId;
       const classObj = classesById.get(String(classId || ""));
@@ -381,7 +545,14 @@ const Staff = () => {
         class_display,
       };
     });
-  }, [students, selectedTeacher, classesById, shiftsById]);
+  }, [
+    students,
+    selectedTeacher,
+    reportClassId,
+    reportDivision,
+    classesById,
+    shiftsById,
+  ]);
 
   const reportCount = reportRows.length;
   const reportGeneratedAt = new Date().toLocaleString();
@@ -390,6 +561,8 @@ const Staff = () => {
 
   const handleOpenReport = () => {
     setReportTeacherId("");
+    setReportClassId("");
+    setReportDivision("");
     setReportOpen(true);
   };
   const handleCloseReport = () => setReportOpen(false);
@@ -523,6 +696,40 @@ const Staff = () => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Staff</h1>
         <Stack direction="row" spacing={2} alignItems="center">
+          <Tooltip title={search || "Search by name, contact, role"} arrow>
+            <TextField
+              size="small"
+              placeholder="Search staff..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{
+                minWidth: 260,
+                "& .MuiInputBase-input": {
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {searching ? (
+                      <CircularProgress size={16} />
+                    ) : search ? (
+                      <IconButton size="small" onClick={() => setSearch("")}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    ) : null}
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Tooltip>
           <Button
             variant="outlined"
             color="secondary"
@@ -637,10 +844,27 @@ const Staff = () => {
             {selectedTeacher && (
               <Chip size="small" label={`Teacher: ${selectedTeacher.name}`} />
             )}
+            {reportClassId && teacherAssignedClasses.length > 0 && (
+              <Chip
+                size="small"
+                label={`Class: ${
+                  teacherAssignedClasses.find(
+                    (c) => `${c.class_id}_${c.shift_name}` === reportClassId
+                  )?.display_name || reportClassId
+                }`}
+              />
+            )}
+            {reportDivision && (
+              <Chip size="small" label={`Division: ${reportDivision}`} />
+            )}
           </Stack>
           <Divider sx={{ mb: 2 }} />
 
-          <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            sx={{ mb: 2 }}
+          >
             <FormControl size="small" sx={{ minWidth: 180 }}>
               <InputLabel
                 id="report-teacher-label"
@@ -652,8 +876,20 @@ const Staff = () => {
                 labelId="report-teacher-label"
                 label="Teacher"
                 value={reportTeacherId}
-                onChange={(e) => setReportTeacherId(e.target.value)}
+                onChange={(e) => {
+                  setReportTeacherId(e.target.value);
+                  setReportClassId(""); // Reset class when teacher changes
+                  setReportDivision(""); // Reset division when teacher changes
+                }}
                 displayEmpty
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300,
+                      overflow: "auto",
+                    },
+                  },
+                }}
                 renderValue={(selected) => {
                   if (selected === "") {
                     return "All";
@@ -677,11 +913,98 @@ const Staff = () => {
               </Select>
             </FormControl>
 
+            {/* Class dropdown - always visible but disabled until teacher is selected */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel
+                id="report-class-label"
+                shrink={reportClassId === "" || reportClassId !== ""}
+              >
+                Class
+              </InputLabel>
+              <Select
+                labelId="report-class-label"
+                label="Class"
+                value={reportClassId}
+                onChange={(e) => {
+                  setReportClassId(e.target.value);
+                  setReportDivision(""); // Reset division when class changes
+                }}
+                disabled={
+                  !selectedTeacher || teacherAssignedClasses.length === 0
+                }
+                displayEmpty
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300,
+                      overflow: "auto",
+                    },
+                  },
+                }}
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All Classes";
+                  }
+                  const cls = teacherAssignedClasses.find(
+                    (c) => `${c.class_id}_${c.shift_name}` === selected
+                  );
+                  return cls?.display_name || String(selected);
+                }}
+              >
+                <MenuItem value="">
+                  <em>All Classes</em>
+                </MenuItem>
+                {teacherAssignedClasses.map((cls) => (
+                  <MenuItem
+                    key={`${cls.class_id}_${cls.shift_name}`}
+                    value={`${cls.class_id}_${cls.shift_name}`}
+                  >
+                    {cls.display_name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Division dropdown - always visible but disabled until class is selected */}
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel
+                id="report-division-label"
+                shrink={reportDivision === "" || reportDivision !== ""}
+              >
+                Division
+              </InputLabel>
+              <Select
+                labelId="report-division-label"
+                label="Division"
+                value={reportDivision}
+                onChange={(e) => setReportDivision(e.target.value)}
+                disabled={!reportClassId || availableDivisions.length === 0}
+                displayEmpty
+                renderValue={(selected) => {
+                  if (selected === "") {
+                    return "All";
+                  }
+                  return selected;
+                }}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                {availableDivisions.map((div) => (
+                  <MenuItem key={div} value={div}>
+                    {div}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <Button
               variant="text"
               color="inherit"
               onClick={() => {
                 setReportTeacherId("");
+                setReportClassId("");
+                setReportDivision("");
               }}
               sx={{ ml: "auto" }}
             >

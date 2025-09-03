@@ -4,6 +4,7 @@ const fs = require("fs");
 // Defer requiring backend modules until app is ready so db.js can resolve userData path
 let getBranches;
 let getStudents,
+  getStudentsByTeacher,
   searchStudents,
   addStudent,
   getClasses,
@@ -13,7 +14,7 @@ let getStudents,
   deleteStudent,
   getStudentById;
 let getSetting, setSetting;
-let getStaff, addStaff, updateStaff, deleteStaff, getStaffById;
+let getStaff, addStaff, updateStaff, deleteStaff, getStaffById, searchStaff;
 let getTransport, addTransport, updateTransport, deleteTransport;
 let getFees,
   addFees,
@@ -206,6 +207,7 @@ app.whenReady().then(() => {
     ({ getBranches } = require("./server/branches"));
     ({
       getStudents,
+      getStudentsByTeacher,
       searchStudents,
       addStudent,
       getClasses,
@@ -224,10 +226,11 @@ app.whenReady().then(() => {
     ({ getSetting, setSetting } = require("./server/settings"));
     ({
       getStaff,
+      getStaffById,
       addStaff,
       updateStaff,
+      searchStaff,
       deleteStaff,
-      getStaffById,
     } = require("./server/staff"));
     ({
       getTransport,
@@ -338,7 +341,7 @@ ipcMain.handle("get-branches", async () => {
     return branches;
   } catch (error) {
     console.error("[main.js] Error in 'get-branches' handler:", error);
-    return []; // Return empty array on error
+    return []; // Return empty array
   }
 });
 
@@ -346,8 +349,9 @@ ipcMain.handle(
   "get-students",
   async (event, branch_id, academicYearId = null) => {
     console.log(
-      "[main.js] IPC handler 'get-students' invoked.",
+      "[main.js] 'get-students' handler called with branch_id:",
       branch_id,
+      "academicYearId:",
       academicYearId
     );
     try {
@@ -355,7 +359,24 @@ ipcMain.handle(
       return students;
     } catch (error) {
       console.error("[main.js] Error in 'get-students' handler:", error);
-      return [];
+      throw error;
+    }
+  }
+);
+
+ipcMain.handle(
+  "get-students-by-teacher",
+  async (event, branch_id, academicYearId = null, teacherId = null, classId = null, shiftName = null, division = null) => {
+    console.log(
+      "[main.js] 'get-students-by-teacher' handler called with:",
+      { branch_id, academicYearId, teacherId, classId, shiftName, division }
+    );
+    try {
+      const students = await getStudentsByTeacher(branch_id, academicYearId, teacherId, classId, shiftName, division);
+      return students;
+    } catch (error) {
+      console.error("[main.js] Error in 'get-students-by-teacher' handler:", error);
+      throw error;
     }
   }
 );
@@ -539,13 +560,23 @@ ipcMain.handle("update-staff", async (event, staffData) => {
   }
 });
 
+ipcMain.handle("search-staff", async (event, query) => {
+  try {
+    const results = await searchStaff(query);
+    return results;
+  } catch (error) {
+    console.error("[main.js] Error in 'search-staff' handler:", error);
+    throw error;
+  }
+});
+
 ipcMain.handle("delete-staff", async (event, id) => {
   try {
-    await deleteStaff(id);
-    return { success: true };
+    const result = await deleteStaff(id);
+    return result;
   } catch (error) {
     console.error("[main.js] Error in 'delete-staff' handler:", error);
-    return { success: false, error: error.message };
+    throw error;
   }
 });
 
