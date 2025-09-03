@@ -1,6 +1,6 @@
 {
   "name": "school-management-software",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "main": "main.js",
   "scripts": {
     "dev": "concurrently \"npm:start-client\" \"npm:start-electron\"",
