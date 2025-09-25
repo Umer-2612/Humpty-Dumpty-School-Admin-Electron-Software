@@ -11,9 +11,10 @@ import {
 } from "@mui/material";
 
 const FeesReportTable = ({ columns, rows, getRowClassName }) => {
-  // Split columns into groups
-  const totalFeesColumns = columns.slice(2, 5); // Total fees columns
-  const pendingFeesColumns = columns.slice(5, 8); // Pending fees columns
+  // Split columns into groups: after first two base columns
+  const term1Columns = columns.slice(2, 5);
+  const term2Columns = columns.slice(5, 8);
+  const booksColumns = columns.slice(8, 11);
 
   const groupHeaderRef = useRef(null);
   const subHeaderRef = useRef(null);
@@ -141,13 +142,12 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
                 textAlign: "center",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
               }}
             >
               Student Name
             </TableCell>
 
-            {/* Total Fees Group Header */}
+            {/* Term1 Group Header */}
             <TableCell
               colSpan={3}
               sx={{
@@ -168,10 +168,10 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
                 borderRight: "1px solid",
               }}
             >
-              Total Fees
+              Term1
             </TableCell>
 
-            {/* Pending Fees Group Header */}
+            {/* Term2 Group Header */}
             <TableCell
               colSpan={3}
               sx={{
@@ -185,21 +185,45 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
                 position: "sticky",
                 top: 0,
                 zIndex: 130,
-                height: 30,
+                height: 40,
                 padding: 0,
-                lineHeight: "30px",
+                lineHeight: "40px",
                 backgroundClip: "padding-box",
                 borderRight: "1px solid",
               }}
             >
-              Pending Fees
+              Term2
+            </TableCell>
+
+            {/* Books Group Header */}
+            <TableCell
+              colSpan={3}
+              sx={{
+                backgroundColor: "#f5f5f5",
+                border: 0,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                fontWeight: 600,
+                fontSize: "12px",
+                textAlign: "center",
+                position: "sticky",
+                top: 0,
+                zIndex: 130,
+                height: 40,
+                padding: 0,
+                lineHeight: "40px",
+                backgroundClip: "padding-box",
+                borderRight: "1px solid",
+              }}
+            >
+              Books
             </TableCell>
           </TableRow>
 
           {/* Sub Headers Row */}
           <TableRow ref={subHeaderRef}>
-            {/* Total Fees Sub Headers */}
-            {totalFeesColumns.map((column) => (
+            {/* Term1 Sub Headers */}
+            {term1Columns.map((column) => (
               <TableCell
                 key={column.field}
                 sx={{
@@ -225,8 +249,35 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
               </TableCell>
             ))}
 
-            {/* Pending Fees Sub Headers */}
-            {pendingFeesColumns.map((column) => (
+            {/* Term2 Sub Headers */}
+            {term2Columns.map((column) => (
+              <TableCell
+                key={column.field}
+                sx={{
+                  backgroundColor: "#f5f5f5",
+                  border: 0,
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                  fontWeight: 600,
+                  fontSize: "12px",
+                  textAlign: "center",
+                  width: 100,
+                  position: "sticky",
+                  top: `${groupH}px`,
+                  zIndex: 110,
+                  height: 30,
+                  padding: 0,
+                  lineHeight: "30px",
+                  backgroundClip: "padding-box",
+                  borderRight: "1px solid",
+                }}
+              >
+                {column.headerName}
+              </TableCell>
+            ))}
+
+            {/* Books Sub Headers */}
+            {booksColumns.map((column) => (
               <TableCell
                 key={column.field}
                 sx={{
@@ -311,8 +362,8 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
                   : row.name}
               </TableCell>
 
-              {/* Total Fees Columns */}
-              {totalFeesColumns.map((column) => (
+              {/* Term1 Columns */}
+              {term1Columns.map((column) => (
                 <TableCell
                   key={column.field}
                   sx={{
@@ -332,8 +383,29 @@ const FeesReportTable = ({ columns, rows, getRowClassName }) => {
                 </TableCell>
               ))}
 
-              {/* Pending Fees Columns */}
-              {pendingFeesColumns.map((column) => (
+              {/* Term2 Columns */}
+              {term2Columns.map((column) => (
+                <TableCell
+                  key={column.field}
+                  sx={{
+                    border: 0,
+                    borderBottom: "1px solid",
+                    borderColor: "divider",
+                    borderRight: "1px solid",
+                    textAlign: "center",
+                    width: 100,
+                    height: 30,
+                    padding: "0 6px",
+                  }}
+                >
+                  {column.renderCell
+                    ? column.renderCell({ value: row[column.field], row })
+                    : row[column.field]}
+                </TableCell>
+              ))}
+
+              {/* Books Columns */}
+              {booksColumns.map((column) => (
                 <TableCell
                   key={column.field}
                   sx={{

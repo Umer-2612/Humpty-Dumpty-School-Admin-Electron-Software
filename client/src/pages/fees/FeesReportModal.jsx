@@ -257,67 +257,90 @@ export default function FeesReportModal({ open, onClose }) {
       },
     ];
 
-    const totalFeesColumns = [
+    const currencyCell = (params) =>
+      `₹${params.value?.toLocaleString("en-IN") || 0}`;
+
+    // New structure: For each of Term1, Term2, Books -> subcolumns Total, Paid, Pending
+    const term1Columns = [
       {
-        field: "totalTerm1",
-        headerName: "Term1",
+        field: "term1Total",
+        headerName: "Total",
         width: 90,
         headerAlign: "center",
         align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+        renderCell: currencyCell,
       },
       {
-        field: "totalTerm2",
-        headerName: "Term2",
+        field: "term1Paid",
+        headerName: "Paid",
         width: 90,
         headerAlign: "center",
         align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+        renderCell: currencyCell,
       },
       {
-        field: "totalBooks",
-        headerName: "Books",
+        field: "term1Pending",
+        headerName: "Pending",
         width: 90,
         headerAlign: "center",
         align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
+        renderCell: currencyCell,
+      },
+    ];
+    const term2Columns = [
+      {
+        field: "term2Total",
+        headerName: "Total",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
+      },
+      {
+        field: "term2Paid",
+        headerName: "Paid",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
+      },
+      {
+        field: "term2Pending",
+        headerName: "Pending",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
+      },
+    ];
+    const booksColumns = [
+      {
+        field: "booksTotal",
+        headerName: "Total",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
+      },
+      {
+        field: "booksPaid",
+        headerName: "Paid",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
+      },
+      {
+        field: "booksPending",
+        headerName: "Pending",
+        width: 90,
+        headerAlign: "center",
+        align: "right",
+        renderCell: currencyCell,
       },
     ];
 
-    const pendingFeesColumns = [
-      {
-        field: "pendingTerm1",
-        headerName: "Term1",
-        width: 90,
-        headerAlign: "center",
-        align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
-      },
-      {
-        field: "pendingTerm2",
-        headerName: "Term2",
-        width: 90,
-        headerAlign: "center",
-        align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
-      },
-      {
-        field: "pendingBooks",
-        headerName: "Books",
-        width: 90,
-        headerAlign: "center",
-        align: "right",
-        renderCell: (params) =>
-          `₹${params.value?.toLocaleString("en-IN") || 0}`,
-      },
-    ];
-
-    return [...baseColumns, ...totalFeesColumns, ...pendingFeesColumns];
+    return [...baseColumns, ...term1Columns, ...term2Columns, ...booksColumns];
   }, []);
 
   // Prepare students data with calculated amounts
@@ -332,14 +355,18 @@ export default function FeesReportModal({ open, onClose }) {
 
       return {
         ...student,
-        // Total Fees breakdown
-        totalTerm1: Number(term1Data.total) || 0,
-        totalTerm2: Number(term2Data.total) || 0,
-        totalBooks: Number(booksData.total) || 0,
-        // Pending Fees breakdown
-        pendingTerm1: Number(term1Data.pending) || 0,
-        pendingTerm2: Number(term2Data.pending) || 0,
-        pendingBooks: Number(booksData.pending) || 0,
+        // Term1
+        term1Total: Number(term1Data.total) || 0,
+        term1Paid: Number(term1Data.paid) || 0,
+        term1Pending: Number(term1Data.pending) || 0,
+        // Term2
+        term2Total: Number(term2Data.total) || 0,
+        term2Paid: Number(term2Data.paid) || 0,
+        term2Pending: Number(term2Data.pending) || 0,
+        // Books
+        booksTotal: Number(booksData.total) || 0,
+        booksPaid: Number(booksData.paid) || 0,
+        booksPending: Number(booksData.pending) || 0,
         // Keep legacy totals for grand total calculations
         totalAmount:
           (Number(term1Data.total) || 0) +
@@ -372,24 +399,32 @@ export default function FeesReportModal({ open, onClose }) {
         totalAmount: acc.totalAmount + (student.totalAmount || 0),
         receivedAmount: acc.receivedAmount + (student.receivedAmount || 0),
         pendingAmount: acc.pendingAmount + (student.pendingAmount || 0),
-        // Individual term totals
-        totalTerm1: acc.totalTerm1 + (student.totalTerm1 || 0),
-        totalTerm2: acc.totalTerm2 + (student.totalTerm2 || 0),
-        totalBooks: acc.totalBooks + (student.totalBooks || 0),
-        pendingTerm1: acc.pendingTerm1 + (student.pendingTerm1 || 0),
-        pendingTerm2: acc.pendingTerm2 + (student.pendingTerm2 || 0),
-        pendingBooks: acc.pendingBooks + (student.pendingBooks || 0),
+        // Term1
+        term1Total: acc.term1Total + (student.term1Total || 0),
+        term1Paid: acc.term1Paid + (student.term1Paid || 0),
+        term1Pending: acc.term1Pending + (student.term1Pending || 0),
+        // Term2
+        term2Total: acc.term2Total + (student.term2Total || 0),
+        term2Paid: acc.term2Paid + (student.term2Paid || 0),
+        term2Pending: acc.term2Pending + (student.term2Pending || 0),
+        // Books
+        booksTotal: acc.booksTotal + (student.booksTotal || 0),
+        booksPaid: acc.booksPaid + (student.booksPaid || 0),
+        booksPending: acc.booksPending + (student.booksPending || 0),
       }),
       {
         totalAmount: 0,
         receivedAmount: 0,
         pendingAmount: 0,
-        totalTerm1: 0,
-        totalTerm2: 0,
-        totalBooks: 0,
-        pendingTerm1: 0,
-        pendingTerm2: 0,
-        pendingBooks: 0,
+        term1Total: 0,
+        term1Paid: 0,
+        term1Pending: 0,
+        term2Total: 0,
+        term2Paid: 0,
+        term2Pending: 0,
+        booksTotal: 0,
+        booksPaid: 0,
+        booksPending: 0,
       }
     );
   }, [studentsWithAmounts]);
@@ -402,12 +437,18 @@ export default function FeesReportModal({ open, onClose }) {
           const vals = [
             r.srNo || "",
             r.roll_number ? `${r.name || ""} (${r.roll_number})` : r.name || "",
-            `₹${r.totalTerm1?.toLocaleString("en-IN") || 0}`,
-            `₹${r.totalTerm2?.toLocaleString("en-IN") || 0}`,
-            `₹${r.totalBooks?.toLocaleString("en-IN") || 0}`,
-            `₹${r.pendingTerm1?.toLocaleString("en-IN") || 0}`,
-            `₹${r.pendingTerm2?.toLocaleString("en-IN") || 0}`,
-            `₹${r.pendingBooks?.toLocaleString("en-IN") || 0}`,
+            // Term1: Total, Paid, Pending
+            `₹${r.term1Total?.toLocaleString("en-IN") || 0}`,
+            `₹${r.term1Paid?.toLocaleString("en-IN") || 0}`,
+            `₹${r.term1Pending?.toLocaleString("en-IN") || 0}`,
+            // Term2: Total, Paid, Pending
+            `₹${r.term2Total?.toLocaleString("en-IN") || 0}`,
+            `₹${r.term2Paid?.toLocaleString("en-IN") || 0}`,
+            `₹${r.term2Pending?.toLocaleString("en-IN") || 0}`,
+            // Books: Total, Paid, Pending
+            `₹${r.booksTotal?.toLocaleString("en-IN") || 0}`,
+            `₹${r.booksPaid?.toLocaleString("en-IN") || 0}`,
+            `₹${r.booksPending?.toLocaleString("en-IN") || 0}`,
           ].map((v) =>
             String(v)
               .replace(/&/g, "&amp;")
@@ -424,18 +465,18 @@ export default function FeesReportModal({ open, onClose }) {
         <meta charset="utf-8" />
         <title>Fee Report</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 16px; }
+          body { font-family: Arial, sans-serif; padding: 10px; }
           .header { margin-bottom: 12px; text-align: center; }
-          .branch { margin: 0; font-size: 20px; font-weight: 700; }
-          .subject { margin: 2px 0 0 0; font-size: 13px; color: #333; }
-          .meta { margin: 4px 0 8px 0; font-size: 12px; color: #555; }
+          .branch { margin: 0; font-size: 18px; font-weight: 700; }
+          .subject { margin: 2px 0 0 0; font-size: 12px; color: #333; }
+          .meta { margin: 4px 0 8px 0; font-size: 11px; color: #555; }
           .chips { margin: 6px 0 12px 0; text-align: center; }
-          .chip { display: inline-block; border: 1px solid #bbb; border-radius: 12px; padding: 2px 8px; font-size: 11px; margin-right: 6px; margin-bottom: 6px; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #999; padding: 6px 8px; font-size: 12px; }
+          .chip { display: inline-block; border: 1px solid #bbb; border-radius: 12px; padding: 1px 6px; font-size: 10px; margin-right: 4px; margin-bottom: 4px; }
+          table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+          th, td { border: 1px solid #999; padding: 4px 6px; font-size: 11px; word-wrap: break-word; }
           th { background: #f0f0f0; text-align: left; }
           @media print {
-            @page { size: A4; margin: 12mm; }
+            @page { size: A4 landscape; margin: 10mm; }
             thead { display: table-header-group; }
             tfoot { display: table-row-group; }
           }
@@ -453,20 +494,37 @@ export default function FeesReportModal({ open, onClose }) {
           </div>
         </div>
         <table>
+          <colgroup>
+            <col style="width:5%" />
+            <col style="width:20%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+            <col style="width:7.5%" />
+          </colgroup>
           <thead>
             <tr>
               <th rowspan="2">Sr. No.</th>
               <th rowspan="2">Student Name</th>
-              <th colspan="3" style="text-align: center;">Total Fees</th>
-              <th colspan="3" style="text-align: center;">Pending Fees</th>
+              <th colspan="3" style="text-align: center;">Term1</th>
+              <th colspan="3" style="text-align: center;">Term2</th>
+              <th colspan="3" style="text-align: center;">Books</th>
             </tr>
             <tr>
-              <th>Term1</th>
-              <th>Term2</th>
-              <th>Books</th>
-              <th>Term1</th>
-              <th>Term2</th>
-              <th>Books</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Pending</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Pending</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Pending</th>
             </tr>
           </thead>
           <tbody>
@@ -475,22 +533,31 @@ export default function FeesReportModal({ open, onClose }) {
           <tfoot>
             <tr style="border-top: 2px solid #333; background: #f5f5f5;">
               <td colspan="2" style="font-weight: bold; text-align: right; padding: 8px;">Grand Total:</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalTerm1.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term1Total.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalTerm2.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term1Paid.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.totalBooks.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term1Pending.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingTerm1.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term2Total.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingTerm2.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term2Paid.toLocaleString(
                 "en-IN"
               )}</td>
-              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.pendingBooks.toLocaleString(
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.term2Pending.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.booksTotal.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.booksPaid.toLocaleString(
+                "en-IN"
+              )}</td>
+              <td style="font-weight: bold; text-align: left; padding: 8px;">₹${grandTotals.booksPending.toLocaleString(
                 "en-IN"
               )}</td>
             </tr>
@@ -507,12 +574,15 @@ export default function FeesReportModal({ open, onClose }) {
       yearLabel,
       reportClassLabel,
       reportDivisionLabel,
-      grandTotals.totalTerm1,
-      grandTotals.totalTerm2,
-      grandTotals.totalBooks,
-      grandTotals.pendingTerm1,
-      grandTotals.pendingTerm2,
-      grandTotals.pendingBooks,
+      grandTotals.term1Total,
+      grandTotals.term1Paid,
+      grandTotals.term1Pending,
+      grandTotals.term2Total,
+      grandTotals.term2Paid,
+      grandTotals.term2Pending,
+      grandTotals.booksTotal,
+      grandTotals.booksPaid,
+      grandTotals.booksPending,
     ]
   );
 
@@ -701,12 +771,15 @@ export default function FeesReportModal({ open, onClose }) {
                           srNo: "",
                           roll_number: "",
                           name: "Grand Total",
-                          totalTerm1: grandTotals.totalTerm1,
-                          totalTerm2: grandTotals.totalTerm2,
-                          totalBooks: grandTotals.totalBooks,
-                          pendingTerm1: grandTotals.pendingTerm1,
-                          pendingTerm2: grandTotals.pendingTerm2,
-                          pendingBooks: grandTotals.pendingBooks,
+                          term1Total: grandTotals.term1Total,
+                          term1Paid: grandTotals.term1Paid,
+                          term1Pending: grandTotals.term1Pending,
+                          term2Total: grandTotals.term2Total,
+                          term2Paid: grandTotals.term2Paid,
+                          term2Pending: grandTotals.term2Pending,
+                          booksTotal: grandTotals.booksTotal,
+                          booksPaid: grandTotals.booksPaid,
+                          booksPending: grandTotals.booksPending,
                           isGrandTotal: true,
                         },
                       ]

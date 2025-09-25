@@ -191,31 +191,38 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
             body * { visibility: hidden; }
             #receipt-print-area, #receipt-print-area * { visibility: visible; }
             #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; box-shadow: none !important; }
+            #receipt-print-area .receipt { width: 700px; margin: 0 auto 8mm; page-break-inside: avoid; }
             .print-hide { display: none !important; }
           }
-          @page { size: A5; margin: 6mm; }
+          @media screen {
+            #receipt-print-area .receipt.copy-2 { display: none; }
+          }
+          @page { size: A4; margin: 10mm; }
         `}
       />
 
       <Slide direction="down" in={open} mountOnEnter unmountOnExit>
         <Box sx={{ p: 2 }}>
-          {/* Receipt Canvas */}
-          <Box
-            id="receipt-print-area"
-            sx={{
-              width: 720,
-              height: "auto",
-              mx: "auto",
-              bgcolor: "#FFF",
-              p: 1.5,
-              pt: 1,
-              display: "flex",
-              flexDirection: "column",
-              boxSizing: "border-box",
-              border: "1px solid #222",
-            }}
-          >
-            {/* Header */}
+          {/* Receipt Canvas (two copies for A4 print) */}
+          <Box id="receipt-print-area">
+            {/* Copy 1 */}
+            <Box
+              className="receipt"
+              sx={{
+                width: 700,
+                height: "auto",
+                mx: "auto",
+                bgcolor: "#FFF",
+                p: 1.5,
+                pt: 1,
+                display: "flex",
+                flexDirection: "column",
+                boxSizing: "border-box",
+                border: "1px solid #222",
+                mb: 1.5,
+              }}
+            >
+              {/* Header */}
             <Grid
               container
               alignItems="center"
@@ -481,7 +488,293 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
               </Grid>
             </Grid>
 
-            {/* Footer note line if needed */}
+              {/* Footer note line if needed */}
+            </Box>
+
+            {/* Copy 2 */}
+            <Box
+              className="receipt copy-2"
+              sx={{
+                width: 700,
+                height: "auto",
+                mx: "auto",
+                bgcolor: "#FFF",
+                p: 1.5,
+                pt: 1,
+                display: "flex",
+                flexDirection: "column",
+                boxSizing: "border-box",
+                border: "1px solid #222",
+              }}
+            >
+              {/* Header */}
+              <Grid
+                container
+                alignItems="center"
+                sx={{ mb: 1, justifyContent: "space-between" }}
+              >
+                <Grid item xs={2}>
+                  <Box
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={logo}
+                      alt="Humpty Dumpty Logo"
+                      sx={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid item xs={8}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 20,
+                        fontWeight: 800,
+                        lineHeight: 1,
+                        textAlign: "center",
+                      }}
+                    >
+                      {r.branch_name ||
+                        selectedBranch?.name ||
+                        "Humpty Dumpty Kindergarten"}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, textAlign: "center" }}>
+                      31, Ghanshyam Soc., Opp. Rushabh Apt., Adajan Patiya,
+                      Rander, Surat.
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={2}>
+                  <Box
+                    sx={{
+                      fontSize: 12,
+                      textAlign: "right",
+                      lineHeight: 1.15,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <div>Mob.: 99099 11966</div>
+                    <div>99093 11966</div>
+                    <div>91067 53875</div>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              <Divider
+                sx={{ borderColor: "#222", borderBottomWidth: 2, mb: 0.5 }}
+              />
+
+              {/* Row 1: Name full width with aligned label */}
+              <Grid
+                container
+                columnSpacing={1}
+                sx={{
+                  alignItems: "center",
+                  borderBottom: "2px solid #222",
+                  minHeight: 28,
+                  pb: 0.25,
+                  mb: 0.5,
+                }}
+              >
+                <Grid item xs={12}>
+                  <Field label="Name">
+                    <Underline width="100%">{r.student_name || ""}</Underline>
+                  </Field>
+                </Grid>
+              </Grid>
+
+              {/* Row 2: Class / Shift / Rcpt No */}
+              <Grid
+                container
+                columnSpacing={0}
+                sx={{
+                  alignItems: "center",
+                  borderBottom: "2px solid #222",
+                  minHeight: 32,
+                  pb: 0.5,
+                  mb: 0.5,
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                  <Box sx={{ width: "100%" }}>
+                    <Field label="Class">
+                      <Underline width="100%">{r.class_name || ""}</Underline>
+                    </Field>
+                  </Box>
+                </Grid>
+                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                  <Box sx={{ width: "100%" }}>
+                    <Field
+                      label="Shift"
+                      labelTextW={MID_LABEL_TEXT_W}
+                      colonW={MID_COL_W}
+                      valuePad={MID_VALUE_PAD}
+                    >
+                      <Underline width="100%">{shiftName}</Underline>
+                    </Field>
+                  </Box>
+                </Grid>
+                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                  <Box sx={{ width: "100%" }}>
+                    <Field label="Rcpt. No.">
+                      <Underline width="100%" align="left">
+                        {normalizeReceipt(r.receipt_number || "")}
+                      </Underline>
+                    </Field>
+                  </Box>
+                </Grid>
+              </Grid>
+
+              {/* Row 3: Cash / Date / Spacer */}
+              <Grid
+                container
+                columnSpacing={0}
+                sx={{
+                  alignItems: "center",
+                  borderBottom: "2px solid #222",
+                  minHeight: 32,
+                  pb: 0.5,
+                  mb: 0.5,
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field label="Cash ₹">
+                    <Underline width="100%">
+                      {String((r.payment_type || "").toLowerCase()).includes(
+                        "bank"
+                      ) ||
+                      String((r.payment_type || "").toLowerCase()) === "cheque"
+                        ? ""
+                        : r.amount || ""}
+                    </Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field
+                    label="Date"
+                    labelTextW={MID_LABEL_TEXT_W}
+                    colonW={MID_COL_W}
+                    valuePad={MID_VALUE_PAD}
+                  >
+                    <Underline width="100%" align="left">
+                      {r.payment_date ? 
+                        new Date(r.payment_date).toLocaleDateString('en-GB', {
+                          day: '2-digit',
+                          month: '2-digit', 
+                          year: 'numeric'
+                        }).replace(/\//g, '-') : ""
+                      }
+                    </Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                  <Box sx={{ width: "100%" }} />
+                </Grid>
+              </Grid>
+
+              {/* Row 4: Cheque No / Bank / Spacer */}
+              <Grid
+                container
+                columnSpacing={0}
+                sx={{
+                  alignItems: "center",
+                  borderBottom: "2px solid #222",
+                  minHeight: 28,
+                  pb: 0.5,
+                  mb: 0.5,
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field label="Cheque No.">
+                    <Underline width="100%">{r.cheque_number || ""}</Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field
+                    label="Bank"
+                    labelTextW={MID_LABEL_TEXT_W}
+                    colonW={MID_COL_W}
+                    valuePad={MID_VALUE_PAD}
+                  >
+                    <Underline width="100%">{r.bank_name || ""}</Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                  <Box sx={{ width: "100%" }} />
+                </Grid>
+              </Grid>
+
+              {/* Row 5: Cheque / Months / Sign */}
+              <Grid
+                container
+                columnSpacing={0}
+                sx={{
+                  alignItems: "center",
+                  borderBottom: "2px solid #222",
+                  minHeight: 32,
+                  pb: 0.5,
+                  mb: 0.5,
+                  flexWrap: "nowrap",
+                }}
+              >
+                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field label="Cheque ₹">
+                    <Underline width="100%">
+                      {String((r.payment_type || "").toLowerCase()).includes(
+                        "bank"
+                      ) ||
+                      String((r.payment_type || "").toLowerCase()) === "cheque"
+                        ? r.amount || ""
+                        : ""}
+                    </Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+                  <Field
+                    label="Months"
+                    labelTextW={MID_LABEL_TEXT_W}
+                    colonW={MID_COL_W}
+                    valuePad={MID_VALUE_PAD}
+                  >
+                    <Underline width="100%">
+                      {displayUptoMonth(r.month_year, r.months)}
+                    </Underline>
+                  </Field>
+                </Grid>
+                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+                  <Field label="Sign.">
+                    <Underline width="100%" align="right"></Underline>
+                  </Field>
+                </Grid>
+              </Grid>
+
+              {/* Footer note line if needed */}
+            </Box>
           </Box>
           {/* Footer controls (consistent with AddTeacherModal) */}
           <Divider className="print-hide" />
