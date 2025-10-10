@@ -7,7 +7,6 @@ import Typography from "@mui/material/Typography";
 import { teal } from "@mui/material/colors";
 import SchoolIcon from "@mui/icons-material/School";
 import { useBranch } from "../../context/useBranch";
-// Removed inline Add modal dependencies after modularization
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import EditClassEntryModal from "./EditClassEntryModal";
@@ -40,7 +39,6 @@ const Classes = () => {
     ...item,
     srNo: index + 1,
   }));
-  // Columns are defined in useMemo below to keep dependencies stable
 
   // Handlers stabilized with useCallback (used by renderers in columns)
   const handleEditEntryClick = useCallback((entry) => {
@@ -148,7 +146,7 @@ const Classes = () => {
         ),
       },
     ],
-    [handleEditEntryClick, handleDeleteEntryClick]
+    [handleDeleteEntryClick, handleEditEntryClick]
   );
 
   // Compute default width from header text length (approx 9px per char + padding)
@@ -165,8 +163,6 @@ const Classes = () => {
       return { ...col, width: computeHeaderWidth(col.headerName) };
     });
   }, [baseColumns, computeHeaderWidth]);
-
-  // Handlers defined above
 
   useEffect(() => {
     let mounted = true;
@@ -189,7 +185,10 @@ const Classes = () => {
   }, []);
 
   const fetchClassEntries = useCallback(async () => {
-    if (!selectedBranch?.id) return;
+    if (!selectedBranch?.id) {
+      setClassEntries([]);
+      return;
+    }
     setLoading(true);
     try {
       const data = await window.electronAPI.listClassesByBranch(
@@ -197,7 +196,8 @@ const Classes = () => {
       );
       setClassEntries(data || []);
     } catch (err) {
-      setError("Failed to fetch class entries", err);
+      console.error("[AcademicSettings] Failed to fetch class entries", err);
+      setError("Failed to fetch class entries");
     } finally {
       setLoading(false);
     }

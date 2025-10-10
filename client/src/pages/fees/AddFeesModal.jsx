@@ -255,28 +255,38 @@ const AddFeesModal = ({
     const startDate = new Date(selectedYear.start_date);
     const endDate = new Date(selectedYear.end_date);
     const months = [];
-    
+
     const monthNames = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
     ];
 
     let currentDate = new Date(startDate);
-    
+
     while (currentDate <= endDate) {
       const monthName = monthNames[currentDate.getMonth()];
       const year = currentDate.getFullYear().toString().slice(-2); // Get last 2 digits of year
       const monthLabel = `${monthName}-${year}`;
-      
+
       months.push({
         value: monthName, // Keep original month name as value for backend compatibility
-        label: monthLabel // Display format like "March-25"
+        label: monthLabel, // Display format like "March-25"
       });
-      
+
       // Move to next month
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
-    
+
     return months;
   }, [selectedYear?.start_date, selectedYear?.end_date]);
 
@@ -400,12 +410,6 @@ const AddFeesModal = ({
       );
       if (!amountNum || amountNum <= 0)
         newErrors.amount = "Valid amount is required";
-      // Payee name is required only for Bank payments
-      if (
-        paymentType === "bank" &&
-        (!data?.payee_name || !data.payee_name.toString().trim())
-      )
-        newErrors.payee_name = "Payee name is required";
 
       // Surface first validation error via setError, if provided
       if (Object.keys(newErrors).length > 0) {
@@ -428,6 +432,7 @@ const AddFeesModal = ({
           paymentType === "bank" ? data?.cheque_number || null : null,
         bank_name: paymentType === "bank" ? data?.bank_name || null : null,
         payee_name: paymentType === "bank" ? data?.payee_name || "" : null,
+        upi_id: paymentType === "bank" ? data?.upi_id || null : null,
         payment_date: data?.payment_date || today,
         cheque_date: paymentType === "bank" ? data?.cheque_date || null : null,
         academic_year_id: selectedYear?.id || null,
@@ -443,7 +448,7 @@ const AddFeesModal = ({
       if (result?.success) {
         // Clear form values for next entry
         resetForm();
-        if (typeof onSuccess === "function") onSuccess();
+        if (typeof onSuccess === "function") onSuccess(result, { ...payload });
       } else {
         if (typeof setError === "function")
           setError(result?.error || "Failed to collect fees");
@@ -777,9 +782,9 @@ const AddFeesModal = ({
                               >
                                 {index + 1}.
                               </Box>
-                              <Box 
-                                component="span" 
-                                sx={{ 
+                              <Box
+                                component="span"
+                                sx={{
                                   flex: 1,
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
@@ -913,7 +918,7 @@ const AddFeesModal = ({
                   </Box>
                 </Grid>
 
-                {/* Bank: Payee Name */}
+                {/* Bank: Payee Name (optional) */}
                 {paymentType === "bank" && (
                   <Grid item xs={12} sm={6}>
                     <Tooltip
@@ -925,7 +930,6 @@ const AddFeesModal = ({
                     >
                       <TextField
                         fullWidth
-                        required
                         label="Payee Name"
                         name="payee_name"
                         variant="outlined"
@@ -1013,7 +1017,6 @@ const AddFeesModal = ({
                     <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
-                        required
                         label="Bank Name"
                         name="bank_name"
                         variant="outlined"

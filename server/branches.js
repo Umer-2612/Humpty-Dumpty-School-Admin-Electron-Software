@@ -19,7 +19,7 @@ function getBranches() {
   });
 }
 
-function addBranch({ name }) {
+function addBranch({ name, sourceBranchId = null }) {
   return new Promise((resolve, reject) => {
     const trimmed = normalizeName(name);
     if (!trimmed) {
@@ -43,7 +43,159 @@ function addBranch({ name }) {
           return reject(insertErr);
         }
 
-        resolve({ id: this.lastID, name: trimmed });
+        const newBranch = { id: this.lastID, name: trimmed };
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          resolve(newBranch);
+        };
+
+        const requestedSourceId =
+          sourceBranchId !== undefined && sourceBranchId !== null
+            ? Number(sourceBranchId)
+            : null;
+        const hasRequestedSource =
+          typeof requestedSourceId === "number" &&
+          Number.isFinite(requestedSourceId) &&
+          requestedSourceId > 0 &&
+          requestedSourceId !== newBranch.id;
+
+        const pickFallbackBranch = (callback) => {
+          const baseBranchSql =
+            "SELECT id FROM branches WHERE id <> ? ORDER BY id ASC LIMIT 1";
+          db.get(baseBranchSql, [newBranch.id], (fallbackErr, fallbackRow) => {
+            if (fallbackErr) {
+              console.error(
+                "[server/branches.js] Error finding fallback branch for class copy:",
+                fallbackErr
+              );
+              return callback(null);
+            }
+            callback(fallbackRow?.id || null);
+          });
+        };
+
+        const proceedWithSource = (sourceBranchIdToUse) => {
+          if (!sourceBranchIdToUse) {
+            return finish();
+          }
+
+          const fetchClassesSql = `
+            SELECT name, shift_name, start_time, end_time, term1_fee, term2_fee, books_charge, num_divisions
+            FROM classes
+            WHERE branch_id = ?
+          `;
+          db.all(fetchClassesSql, [sourceBranchIdToUse], (classesErr, classRows) => {
+            if (classesErr) {
+              console.error(
+                "[server/branches.js] Error loading classes for duplication:",
+                classesErr
+              );
+              return finish();
+            }
+
+            if (!Array.isArray(classRows) || classRows.length === 0) {
+              return finish();
+            }
+
+            const insertClassSql = `
+              INSERT INTO classes (
+                branch_id,
+                name,
+                shift_name,
+                start_time,
+                end_time,
+                term1_fee,
+                term2_fee,
+                books_charge,
+                num_divisions
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            let prepareFailed = false;
+            const stmt = db.prepare(insertClassSql, (prepErr) => {
+              if (prepErr) {
+                prepareFailed = true;
+                console.error(
+                  "[server/branches.js] Error preparing class duplication statement:",
+                  prepErr
+                );
+                finish();
+              }
+            });
+
+            if (!stmt || prepareFailed) {
+              if (!prepareFailed) {
+                finish();
+              }
+              return;
+            }
+            let remaining = classRows.length;
+
+            const handleComplete = () => {
+              stmt.finalize((finalizeErr) => {
+                if (finalizeErr) {
+                  console.error(
+                    "[server/branches.js] Error finalizing class duplication statement:",
+                    finalizeErr
+                  );
+                }
+                finish();
+              });
+            };
+
+            classRows.forEach((cls) => {
+              stmt.run(
+                [
+                  newBranch.id,
+                  cls.name,
+                  cls.shift_name || "",
+                  cls.start_time || "",
+                  cls.end_time || "",
+                  Number(cls.term1_fee) || 0,
+                  Number(cls.term2_fee) || 0,
+                  Number(cls.books_charge) || 0,
+                  Math.max(0, Number(cls.num_divisions) || 0),
+                ],
+                (copyErr) => {
+                  if (copyErr) {
+                    console.error(
+                      "[server/branches.js] Error duplicating class for new branch:",
+                      copyErr
+                    );
+                  }
+                  remaining -= 1;
+                  if (remaining === 0) {
+                    handleComplete();
+                  }
+                }
+              );
+            });
+          });
+        };
+
+        if (hasRequestedSource) {
+          db.get(
+            "SELECT id FROM branches WHERE id = ?",
+            [requestedSourceId],
+            (checkErr, checkRow) => {
+              if (checkErr) {
+                console.error(
+                  "[server/branches.js] Error verifying requested source branch:",
+                  checkErr
+                );
+                return pickFallbackBranch(proceedWithSource);
+              }
+              if (checkRow?.id) {
+                proceedWithSource(checkRow.id);
+              } else {
+                pickFallbackBranch(proceedWithSource);
+              }
+            }
+          );
+        } else {
+          pickFallbackBranch(proceedWithSource);
+        }
       });
     });
   });

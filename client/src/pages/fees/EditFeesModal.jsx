@@ -133,14 +133,14 @@ const EditFeesModal = ({
         id: feesRecord.id,
         student_id: feesRecord.student_id,
         amount: String(feesRecord.amount ?? ""),
-        // normalize legacy types: cheque->bank, upi->cash
+        // normalize legacy types: cheque->bank, upi->bank
         payment_type:
           (feesRecord.payment_type || "cash").toString().toLowerCase() ===
           "cheque"
             ? "bank"
             : (feesRecord.payment_type || "cash").toString().toLowerCase() ===
               "upi"
-            ? "cash"
+            ? "bank"
             : feesRecord.payment_type || "cash",
         cheque_number: feesRecord.cheque_number || "",
         bank_name: feesRecord.bank_name || "",
@@ -257,10 +257,6 @@ const EditFeesModal = ({
       parseFloat(formData.amount.toString().replace(/,/g, "")) <= 0
     )
       newErrors.amount = "Valid amount is required";
-    // Payee name required only for bank payments (align with Add)
-    const pType = String(formData.payment_type || "cash").toLowerCase();
-    if (pType === "bank" && !formData.payee_name.trim())
-      newErrors.payee_name = "Payee name is required";
     if (!formData.payment_date)
       newErrors.payment_date = "Payment date is required";
     // Do not require bank_name/cheque_number/cheque_date to match Add modal behavior
@@ -285,6 +281,7 @@ const EditFeesModal = ({
           paymentType === "bank" ? formData.cheque_number || null : null,
         bank_name: paymentType === "bank" ? formData.bank_name || null : null,
         payee_name: paymentType === "bank" ? formData.payee_name || "" : null,
+        upi_id: paymentType === "bank" ? formData.upi_id || null : null,
         cheque_date:
           paymentType === "bank" ? formData.cheque_date || null : null,
       };
@@ -643,7 +640,7 @@ const EditFeesModal = ({
               </Grid>
 
               {/* Bank: Payee Name */}
-              {paymentType === "bank" && (
+              {(paymentType === "bank" || !!formData.upi_id) && (
                 <Grid item xs={12} sm={6}>
                   <Tooltip
                     title={(formData.payee_name || "").toString()}
@@ -654,7 +651,6 @@ const EditFeesModal = ({
                   >
                     <TextField
                       fullWidth
-                      required
                       label="Payee Name"
                       name="payee_name"
                       value={formData.payee_name}
@@ -707,7 +703,7 @@ const EditFeesModal = ({
               </Grid>
 
               {/* Bank Fields - Conditional */}
-              {paymentType === "bank" && (
+              {(paymentType === "bank" || !!formData.upi_id) && (
                 <>
                   {/* Cheque Date (Bank) */}
                   <Grid item xs={12} sm={6}>
@@ -735,10 +731,10 @@ const EditFeesModal = ({
                       sx={{ bgcolor: "white" }}
                     />
                   </Grid>
+                  {/* Bank Name (optional) */}
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      required
                       label="Bank Name"
                       name="bank_name"
                       value={formData.bank_name}

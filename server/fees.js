@@ -499,9 +499,9 @@ const addFees = (feesData, callback) => {
         const query = `
           INSERT INTO fees (
             student_id, branch_id, academic_year_id, amount, payment_type, cheque_number,
-            bank_name, payee_name, receipt_number, payment_date, cheque_date,
+            bank_name, payee_name, upi_id, receipt_number, payment_date, cheque_date,
             academic_year, month_year, notes, fee_term, fee_charge
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         const params = [
           feesData.student_id,
@@ -512,6 +512,7 @@ const addFees = (feesData, callback) => {
           feesData.cheque_number || null,
           feesData.bank_name || null,
           feesData.payee_name || null,
+          feesData.upi_id || null,
           receiptNumber,
           feesData.payment_date,
           feesData.cheque_date || null,
@@ -620,7 +621,7 @@ const updateFees = (id, feesData, callback) => {
           const query = `
           UPDATE fees SET 
             student_id = ?, amount = ?, payment_type = ?, cheque_number = ?, 
-            bank_name = ?, payee_name = ?, payment_date = ?, cheque_date = ?,
+            bank_name = ?, payee_name = ?, upi_id = ?, payment_date = ?, cheque_date = ?,
             academic_year = ?, month_year = ?, notes = ?, academic_year_id = ?,
             fee_term = ?, fee_charge = ?
           WHERE id = ?
@@ -632,6 +633,7 @@ const updateFees = (id, feesData, callback) => {
             feesData.cheque_number || null,
             feesData.bank_name || null,
             feesData.payee_name || null,
+            feesData.upi_id || null,
             feesData.payment_date,
             feesData.cheque_date || null,
             feesData.academic_year || null,

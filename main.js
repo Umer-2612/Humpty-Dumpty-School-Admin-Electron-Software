@@ -2,7 +2,10 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 // Defer requiring backend modules until app is ready so db.js can resolve userData path
-let getBranches;
+let getBranches,
+  addBranch,
+  updateBranch,
+  deleteBranch;
 let getStudents,
   getStudentsByTeacher,
   searchStudents,
@@ -204,7 +207,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   try {
-    ({ getBranches } = require("./server/branches"));
+    ({ getBranches, addBranch, updateBranch, deleteBranch } = require("./server/branches"));
     ({
       getStudents,
       getStudentsByTeacher,
@@ -342,6 +345,36 @@ ipcMain.handle("get-branches", async () => {
   } catch (error) {
     console.error("[main.js] Error in 'get-branches' handler:", error);
     return []; // Return empty array
+  }
+});
+
+ipcMain.handle("add-branch", async (_event, payload) => {
+  try {
+    const branch = await addBranch(payload || {});
+    return { success: true, branch };
+  } catch (error) {
+    console.error("[main.js] Error in 'add-branch' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("update-branch", async (_event, payload) => {
+  try {
+    const branch = await updateBranch(payload || {});
+    return { success: true, branch };
+  } catch (error) {
+    console.error("[main.js] Error in 'update-branch' handler:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle("delete-branch", async (_event, id) => {
+  try {
+    await deleteBranch(id);
+    return { success: true };
+  } catch (error) {
+    console.error("[main.js] Error in 'delete-branch' handler:", error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -729,6 +762,7 @@ ipcMain.handle("get-fees-receipt", async (event, receiptNumber) => {
       if (err) {
         console.error("[main.js] Error in 'get-fees-receipt' handler:", err);
         resolve({ success: false, error: err.message });
+      } else {
         resolve({ success: true, receipt });
       }
     });

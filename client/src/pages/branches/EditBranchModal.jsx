@@ -10,21 +10,24 @@ import {
 } from "@mui/material";
 import { useBranch } from "../../context/useBranch";
 
-const AddBranchModal = ({
+const EditBranchModal = ({
   open,
   onClose,
+  branch,
   onSuccess,
   setError,
   setLoading,
 }) => {
-  const { addBranch, selected: activeBranch } = useBranch();
-  const [name, setName] = useState("");
+  const { updateBranch } = useBranch();
+  const [name, setName] = useState(branch?.name || "");
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      setName(branch?.name || "");
+    } else {
       setName("");
     }
-  }, [open]);
+  }, [open, branch]);
 
   const handleSubmit = async (event) => {
     event?.preventDefault();
@@ -36,15 +39,11 @@ const AddBranchModal = ({
 
     try {
       setLoading?.(true);
-      const branch = await addBranch({
-        name: trimmed,
-        sourceBranchId: activeBranch?.id || null,
-      });
-      onSuccess?.(branch);
-      setName("");
+      const updated = await updateBranch({ id: branch?.id, name: trimmed });
+      onSuccess?.(updated);
     } catch (error) {
-      console.error("Failed to add branch:", error);
-      setError?.(error?.message || "Failed to add branch");
+      console.error("Failed to update branch:", error);
+      setError?.(error?.message || "Failed to update branch");
     } finally {
       setLoading?.(false);
     }
@@ -53,7 +52,7 @@ const AddBranchModal = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>Add Branch</DialogTitle>
+        <DialogTitle>Edit Branch</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
@@ -69,7 +68,7 @@ const AddBranchModal = ({
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="contained">
-            Add Branch
+            Save Changes
           </Button>
         </DialogActions>
       </form>
@@ -77,4 +76,4 @@ const AddBranchModal = ({
   );
 };
 
-export default AddBranchModal;
+export default EditBranchModal;

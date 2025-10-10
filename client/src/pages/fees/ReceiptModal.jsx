@@ -98,6 +98,22 @@ const displayUptoMonth = (monthYear, fallback) => {
   return name ? `Upto ${name}` : raw ? `Upto ${raw}` : "-";
 };
 
+const formatDate = (value) => {
+  if (!value) return "";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch (e) {
+    console.log("Date format error:", e);
+    return "";
+  }
+};
+
 // Layout constants
 const LABEL_TEXT_W = 72; // px, default label text width
 const COL_W = 8; // px, default colon width
@@ -146,19 +162,18 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
         return;
       }
 
-      console.log({ r });
-      
-      // Try to get shift name from class information
       const classId = r.class_id || (r.student && r.student.class_id);
-      
       if (classId && window?.electronAPI?.listClassesByBranch) {
         try {
-          // Get the branch ID first
           const branchId = r.branch_id || (r.student && r.student.branch_id);
           if (branchId) {
-            const classes = await window.electronAPI.listClassesByBranch(branchId);
+            const classes = await window.electronAPI.listClassesByBranch(
+              branchId
+            );
             const foundClass = Array.isArray(classes)
-              ? classes.find((c) => String(c.class_id || c.id) === String(classId))
+              ? classes.find(
+                  (c) => String(c.class_id || c.id) === String(classId)
+                )
               : null;
             setShiftName(foundClass?.shift_name || "");
           } else {
@@ -174,14 +189,322 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
     };
     if (open) resolveShift();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    open,
-    r.shift,
-    r.shift_name,
-    r.class_id,
-    r.branch_id,
-    r.student_id,
-  ]);
+  }, [open, r.shift, r.shift_name, r.class_id, r.branch_id, r.student_id]);
+
+  const copies = useMemo(
+    () => [
+      { key: "copy-parent", label: "" },
+      { key: "copy-office", label: "" },
+    ],
+    []
+  );
+
+  const paymentType = useMemo(
+    () => (r.payment_type || "").toString().toLowerCase(),
+    [r.payment_type]
+  );
+  const isBankMode =
+    paymentType === "cheque" ||
+    paymentType === "bank" ||
+    paymentType.includes("bank");
+  const hasUpiId = Boolean(r.upi_id);
+
+  const renderReceiptCopy = (copy, isLast) => (
+    <Box
+      key={copy.key}
+      className={`receipt ${copy.key}`}
+      sx={{
+        width: 700,
+        mx: "auto",
+        bgcolor: "#FFF",
+        p: 1.5,
+        pt: 1,
+        display: "flex",
+        flexDirection: "column",
+        boxSizing: "border-box",
+        border: "1px solid #222",
+        mb: isLast ? 0 : 1.5,
+      }}
+    >
+      {/* Header */}
+      <Grid
+        container
+        alignItems="center"
+        sx={{ mb: 1, justifyContent: "space-between" }}
+      >
+        <Grid item xs={2}>
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Box
+              component="img"
+              src={logo}
+              alt="Humpty Dumpty Logo"
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={8}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+            }}
+          >
+            <Typography
+              sx={{
+                fontSize: 20,
+                fontWeight: 800,
+                lineHeight: 1,
+                textAlign: "center",
+              }}
+            >
+              {r.branch_name ||
+                selectedBranch?.name ||
+                "Humpty Dumpty Kindergarten"}
+            </Typography>
+            <Typography sx={{ fontSize: 12, textAlign: "center" }}>
+              31, Ghanshyam Soc., Opp. Rushabh Apt., Adajan Patiya, Rander,
+              Surat.
+            </Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={2}>
+          <Box
+            sx={{
+              fontSize: 12,
+              textAlign: "right",
+              lineHeight: 1.15,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+            }}
+          >
+            <div>Mob.: 99099 11966</div>
+            <div>99093 11966</div>
+            <div>91067 53875</div>
+          </Box>
+        </Grid>
+      </Grid>
+
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          mb: 0.5,
+        }}
+      >
+        <Typography
+          sx={{
+            fontSize: 13,
+            fontWeight: 600,
+            letterSpacing: 0.4,
+            textTransform: "uppercase",
+          }}
+        >
+          {copy.label}
+        </Typography>
+      </Box>
+
+      <Divider sx={{ borderColor: "#222", borderBottomWidth: 2, mb: 0.5 }} />
+
+      {/* Row 1: Name full width with aligned label */}
+      <Grid
+        container
+        columnSpacing={1}
+        sx={{
+          alignItems: "center",
+          borderBottom: "2px solid #222",
+          minHeight: 28,
+          pb: 0.25,
+          mb: 0.5,
+        }}
+      >
+        <Grid item xs={12}>
+          <Field label="Name">
+            <Underline width="100%">{r.student_name || ""}</Underline>
+          </Field>
+        </Grid>
+      </Grid>
+
+      {/* Row 2: Class / Shift / Rcpt No */}
+      <Grid
+        container
+        columnSpacing={0}
+        sx={{
+          alignItems: "center",
+          borderBottom: "2px solid #222",
+          minHeight: 32,
+          pb: 0.5,
+          mb: 0.5,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+          <Box sx={{ width: "100%" }}>
+            <Field label="Class">
+              <Underline width="100%">{r.class_name || ""}</Underline>
+            </Field>
+          </Box>
+        </Grid>
+        <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+          <Box sx={{ width: "100%" }}>
+            <Field
+              label="Shift"
+              labelTextW={MID_LABEL_TEXT_W}
+              colonW={MID_COL_W}
+              valuePad={MID_VALUE_PAD}
+            >
+              <Underline width="100%">{shiftName}</Underline>
+            </Field>
+          </Box>
+        </Grid>
+        <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+          <Box sx={{ width: "100%" }}>
+            <Field label="Rcpt. No.">
+              <Underline width="100%" align="left">
+                {normalizeReceipt(r.receipt_number || "")}
+              </Underline>
+            </Field>
+          </Box>
+        </Grid>
+      </Grid>
+
+      {/* Row 3: Cash / Date / Spacer */}
+      <Grid
+        container
+        columnSpacing={0}
+        sx={{
+          alignItems: "center",
+          borderBottom: "2px solid #222",
+          minHeight: 32,
+          pb: 0.5,
+          mb: 0.5,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+          <Field label="Cash ₹">
+            <Underline width="100%">
+              {isBankMode ? "" : r.amount || ""}
+            </Underline>
+          </Field>
+        </Grid>
+        <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+          <Field
+            label="Date"
+            labelTextW={MID_LABEL_TEXT_W}
+            colonW={MID_COL_W}
+            valuePad={MID_VALUE_PAD}
+          >
+            <Underline width="100%" align="left">
+              {formatDate(r.payment_date)}
+            </Underline>
+          </Field>
+        </Grid>
+        <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+          <Box sx={{ width: "100%" }} />
+        </Grid>
+      </Grid>
+
+      {/* Row 4: Bank details */}
+      <Grid
+        container
+        columnSpacing={0}
+        sx={{
+          alignItems: "center",
+          borderBottom: "2px solid #222",
+          minHeight: 32,
+          pb: 0.5,
+          mb: 0.5,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+          <Field label="Bank">
+            <Underline width="100%">
+              {isBankMode ? r.bank_name || "" : ""}
+            </Underline>
+          </Field>
+        </Grid>
+        <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+          <Field
+            label={hasUpiId ? "Upi Id" : "Cheque No."}
+            labelTextW={MID_LABEL_TEXT_W}
+            colonW={MID_COL_W}
+            valuePad={MID_VALUE_PAD}
+          >
+            <Underline width="100%">
+              {hasUpiId ? r.upi_id : isBankMode ? r.cheque_number || "" : ""}
+            </Underline>
+          </Field>
+        </Grid>
+        {!hasUpiId && (
+          <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+            <Field label="Cheque Date">
+              <Underline width="100%">
+                {isBankMode ? formatDate(r.cheque_date) : ""}
+              </Underline>
+            </Field>
+          </Grid>
+        )}
+      </Grid>
+
+      {/* Row 5: Cheque / Months / Sign */}
+      <Grid
+        container
+        columnSpacing={0}
+        sx={{
+          alignItems: "center",
+          borderBottom: "2px solid #222",
+          minHeight: 32,
+          pb: 0.5,
+          mb: 0.5,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
+          <Field label="Cheque ₹">
+            <Underline width="100%">
+              {isBankMode ? r.amount || "" : ""}
+            </Underline>
+          </Field>
+        </Grid>
+        <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
+          <Field
+            label="Months"
+            labelTextW={MID_LABEL_TEXT_W}
+            colonW={MID_COL_W}
+            valuePad={MID_VALUE_PAD}
+          >
+            <Underline width="100%">
+              {displayUptoMonth(r.month_year, r.months)}
+            </Underline>
+          </Field>
+        </Grid>
+        <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
+          <Field label="Sign.">
+            <Underline width="100%" align="right"></Underline>
+          </Field>
+        </Grid>
+      </Grid>
+    </Box>
+  );
 
   return (
     <Modal open={open} onClose={onClose} maxWidth="md">
@@ -190,14 +513,41 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
           @media print {
             body * { visibility: hidden; }
             #receipt-print-area, #receipt-print-area * { visibility: visible; }
-            #receipt-print-area { position: absolute; left: 0; top: 0; width: 100%; height: auto; box-shadow: none !important; }
-            #receipt-print-area .receipt { width: 700px; margin: 0 auto 8mm; page-break-inside: avoid; }
+            #receipt-print-area {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              height: auto;
+              box-shadow: none !important;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              gap: 8mm;
+              margin: 0;
+              padding: 0;
+            }
+            #receipt-print-area .receipt {
+              width: 720px;
+              max-width: calc(100% - 20mm);
+              margin: 0 auto;
+              page-break-inside: avoid;
+            }
             .print-hide { display: none !important; }
           }
           @media screen {
-            #receipt-print-area .receipt.copy-2 { display: none; }
+            #receipt-print-area {
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              max-width: 720px;
+              margin: 0 auto;
+            }
+            #receipt-print-area .receipt.copy-office {
+              display: none;
+            }
           }
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4 portrait; margin: 10mm; }
         `}
       />
 
@@ -205,578 +555,12 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
         <Box sx={{ p: 2 }}>
           {/* Receipt Canvas (two copies for A4 print) */}
           <Box id="receipt-print-area">
-            {/* Copy 1 */}
-            <Box
-              className="receipt"
-              sx={{
-                width: 700,
-                height: "auto",
-                mx: "auto",
-                bgcolor: "#FFF",
-                p: 1.5,
-                pt: 1,
-                display: "flex",
-                flexDirection: "column",
-                boxSizing: "border-box",
-                border: "1px solid #222",
-                mb: 1.5,
-              }}
-            >
-              {/* Header */}
-            <Grid
-              container
-              alignItems="center"
-              sx={{ mb: 1, justifyContent: "space-between" }}
-            >
-              <Grid item xs={2}>
-                <Box
-                  sx={{
-                    width: 56,
-                    height: 56,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Box
-                    component="img"
-                    src={logo}
-                    alt="Humpty Dumpty Logo"
-                    sx={{
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                      display: "block",
-                    }}
-                  />
-                </Box>
-              </Grid>
-              <Grid item xs={8}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "100%",
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: 20,
-                      fontWeight: 800,
-                      lineHeight: 1,
-                      textAlign: "center",
-                    }}
-                  >
-                    {r.branch_name ||
-                      selectedBranch?.name ||
-                      "Humpty Dumpty Kindergarten"}
-                  </Typography>
-                  <Typography sx={{ fontSize: 12, textAlign: "center" }}>
-                    31, Ghanshyam Soc., Opp. Rushabh Apt., Adajan Patiya,
-                    Rander, Surat.
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={2}>
-                <Box
-                  sx={{
-                    fontSize: 12,
-                    textAlign: "right",
-                    lineHeight: 1.15,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                  }}
-                >
-                  <div>Mob.: 99099 11966</div>
-                  <div>99093 11966</div>
-                  <div>91067 53875</div>
-                </Box>
-              </Grid>
-            </Grid>
-
-            <Divider
-              sx={{ borderColor: "#222", borderBottomWidth: 2, mb: 0.5 }}
-            />
-
-            {/* Row 1: Name full width with aligned label */}
-            <Grid
-              container
-              columnSpacing={1}
-              sx={{
-                alignItems: "center",
-                borderBottom: "2px solid #222",
-                minHeight: 28,
-                pb: 0.25,
-                mb: 0.5,
-              }}
-            >
-              <Grid item xs={12}>
-                <Field label="Name">
-                  <Underline width="100%">{r.student_name || ""}</Underline>
-                </Field>
-              </Grid>
-            </Grid>
-
-            {/* Row 2: Class / Shift / Rcpt No */}
-            <Grid
-              container
-              columnSpacing={0}
-              sx={{
-                alignItems: "center",
-                borderBottom: "2px solid #222",
-                minHeight: 32,
-                pb: 0.5,
-                mb: 0.5,
-                flexWrap: "nowrap",
-              }}
-            >
-              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                <Box sx={{ width: "100%" }}>
-                  <Field label="Class">
-                    <Underline width="100%">{r.class_name || ""}</Underline>
-                  </Field>
-                </Box>
-              </Grid>
-              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                <Box sx={{ width: "100%" }}>
-                  <Field
-                    label="Shift"
-                    labelTextW={MID_LABEL_TEXT_W}
-                    colonW={MID_COL_W}
-                    valuePad={MID_VALUE_PAD}
-                  >
-                    <Underline width="100%">{shiftName}</Underline>
-                  </Field>
-                </Box>
-              </Grid>
-              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                <Box sx={{ width: "100%" }}>
-                  <Field label="Rcpt. No.">
-                    <Underline width="100%" align="left">
-                      {normalizeReceipt(r.receipt_number || "")}
-                    </Underline>
-                  </Field>
-                </Box>
-              </Grid>
-            </Grid>
-
-            {/* Row 3: Cash / Date / Spacer */}
-            <Grid
-              container
-              columnSpacing={0}
-              sx={{
-                alignItems: "center",
-                borderBottom: "2px solid #222",
-                minHeight: 32,
-                pb: 0.5,
-                mb: 0.5,
-                flexWrap: "nowrap",
-              }}
-            >
-              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                <Field label="Cash ₹">
-                  <Underline width="100%">
-                    {String((r.payment_type || "").toLowerCase()).includes(
-                      "bank"
-                    ) ||
-                    String((r.payment_type || "").toLowerCase()) === "cheque"
-                      ? ""
-                      : r.amount || ""}
-                  </Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                <Field
-                  label="Date"
-                  labelTextW={MID_LABEL_TEXT_W}
-                  colonW={MID_COL_W}
-                  valuePad={MID_VALUE_PAD}
-                >
-                  <Underline width="100%" align="left">
-                    {r.payment_date ? 
-                      new Date(r.payment_date).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: '2-digit', 
-                        year: 'numeric'
-                      }).replace(/\//g, '-') : ""
-                    }
-                  </Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                <Box sx={{ width: "100%" }} />
-              </Grid>
-            </Grid>
-
-            {/* Row 4: Cheque No / Bank / Spacer */}
-            <Grid
-              container
-              columnSpacing={0}
-              sx={{
-                alignItems: "center",
-                borderBottom: "2px solid #222",
-                minHeight: 28,
-                pb: 0.5,
-                mb: 0.5,
-                flexWrap: "nowrap",
-              }}
-            >
-              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                <Field label="Cheque No.">
-                  <Underline width="100%">{r.cheque_number || ""}</Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                <Field
-                  label="Bank"
-                  labelTextW={MID_LABEL_TEXT_W}
-                  colonW={MID_COL_W}
-                  valuePad={MID_VALUE_PAD}
-                >
-                  <Underline width="100%">{r.bank_name || ""}</Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                <Box sx={{ width: "100%" }} />
-              </Grid>
-            </Grid>
-
-            {/* Row 5: Cheque / Months / Sign */}
-            <Grid
-              container
-              columnSpacing={0}
-              sx={{
-                alignItems: "center",
-                borderBottom: "2px solid #222",
-                minHeight: 32,
-                pb: 0.5,
-                mb: 0.5,
-                flexWrap: "nowrap",
-              }}
-            >
-              <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                <Field label="Cheque ₹">
-                  <Underline width="100%">
-                    {String((r.payment_type || "").toLowerCase()).includes(
-                      "bank"
-                    ) ||
-                    String((r.payment_type || "").toLowerCase()) === "cheque"
-                      ? r.amount || ""
-                      : ""}
-                  </Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                <Field
-                  label="Months"
-                  labelTextW={MID_LABEL_TEXT_W}
-                  colonW={MID_COL_W}
-                  valuePad={MID_VALUE_PAD}
-                >
-                  <Underline width="100%">
-                    {displayUptoMonth(r.month_year, r.months)}
-                  </Underline>
-                </Field>
-              </Grid>
-              <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                <Field label="Sign.">
-                  <Underline width="100%" align="right"></Underline>
-                </Field>
-              </Grid>
-            </Grid>
-
-              {/* Footer note line if needed */}
-            </Box>
-
-            {/* Copy 2 */}
-            <Box
-              className="receipt copy-2"
-              sx={{
-                width: 700,
-                height: "auto",
-                mx: "auto",
-                bgcolor: "#FFF",
-                p: 1.5,
-                pt: 1,
-                display: "flex",
-                flexDirection: "column",
-                boxSizing: "border-box",
-                border: "1px solid #222",
-              }}
-            >
-              {/* Header */}
-              <Grid
-                container
-                alignItems="center"
-                sx={{ mb: 1, justifyContent: "space-between" }}
-              >
-                <Grid item xs={2}>
-                  <Box
-                    sx={{
-                      width: 56,
-                      height: 56,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={logo}
-                      alt="Humpty Dumpty Logo"
-                      sx={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        objectFit: "contain",
-                        display: "block",
-                      }}
-                    />
-                  </Box>
-                </Grid>
-                <Grid item xs={8}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        fontSize: 20,
-                        fontWeight: 800,
-                        lineHeight: 1,
-                        textAlign: "center",
-                      }}
-                    >
-                      {r.branch_name ||
-                        selectedBranch?.name ||
-                        "Humpty Dumpty Kindergarten"}
-                    </Typography>
-                    <Typography sx={{ fontSize: 12, textAlign: "center" }}>
-                      31, Ghanshyam Soc., Opp. Rushabh Apt., Adajan Patiya,
-                      Rander, Surat.
-                    </Typography>
-                  </Box>
-                </Grid>
-                <Grid item xs={2}>
-                  <Box
-                    sx={{
-                      fontSize: 12,
-                      textAlign: "right",
-                      lineHeight: 1.15,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "flex-end",
-                    }}
-                  >
-                    <div>Mob.: 99099 11966</div>
-                    <div>99093 11966</div>
-                    <div>91067 53875</div>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              <Divider
-                sx={{ borderColor: "#222", borderBottomWidth: 2, mb: 0.5 }}
-              />
-
-              {/* Row 1: Name full width with aligned label */}
-              <Grid
-                container
-                columnSpacing={1}
-                sx={{
-                  alignItems: "center",
-                  borderBottom: "2px solid #222",
-                  minHeight: 28,
-                  pb: 0.25,
-                  mb: 0.5,
-                }}
-              >
-                <Grid item xs={12}>
-                  <Field label="Name">
-                    <Underline width="100%">{r.student_name || ""}</Underline>
-                  </Field>
-                </Grid>
-              </Grid>
-
-              {/* Row 2: Class / Shift / Rcpt No */}
-              <Grid
-                container
-                columnSpacing={0}
-                sx={{
-                  alignItems: "center",
-                  borderBottom: "2px solid #222",
-                  minHeight: 32,
-                  pb: 0.5,
-                  mb: 0.5,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                  <Box sx={{ width: "100%" }}>
-                    <Field label="Class">
-                      <Underline width="100%">{r.class_name || ""}</Underline>
-                    </Field>
-                  </Box>
-                </Grid>
-                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                  <Box sx={{ width: "100%" }}>
-                    <Field
-                      label="Shift"
-                      labelTextW={MID_LABEL_TEXT_W}
-                      colonW={MID_COL_W}
-                      valuePad={MID_VALUE_PAD}
-                    >
-                      <Underline width="100%">{shiftName}</Underline>
-                    </Field>
-                  </Box>
-                </Grid>
-                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                  <Box sx={{ width: "100%" }}>
-                    <Field label="Rcpt. No.">
-                      <Underline width="100%" align="left">
-                        {normalizeReceipt(r.receipt_number || "")}
-                      </Underline>
-                    </Field>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              {/* Row 3: Cash / Date / Spacer */}
-              <Grid
-                container
-                columnSpacing={0}
-                sx={{
-                  alignItems: "center",
-                  borderBottom: "2px solid #222",
-                  minHeight: 32,
-                  pb: 0.5,
-                  mb: 0.5,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field label="Cash ₹">
-                    <Underline width="100%">
-                      {String((r.payment_type || "").toLowerCase()).includes(
-                        "bank"
-                      ) ||
-                      String((r.payment_type || "").toLowerCase()) === "cheque"
-                        ? ""
-                        : r.amount || ""}
-                    </Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field
-                    label="Date"
-                    labelTextW={MID_LABEL_TEXT_W}
-                    colonW={MID_COL_W}
-                    valuePad={MID_VALUE_PAD}
-                  >
-                    <Underline width="100%" align="left">
-                      {r.payment_date ? 
-                        new Date(r.payment_date).toLocaleDateString('en-GB', {
-                          day: '2-digit',
-                          month: '2-digit', 
-                          year: 'numeric'
-                        }).replace(/\//g, '-') : ""
-                      }
-                    </Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                  <Box sx={{ width: "100%" }} />
-                </Grid>
-              </Grid>
-
-              {/* Row 4: Cheque No / Bank / Spacer */}
-              <Grid
-                container
-                columnSpacing={0}
-                sx={{
-                  alignItems: "center",
-                  borderBottom: "2px solid #222",
-                  minHeight: 28,
-                  pb: 0.5,
-                  mb: 0.5,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field label="Cheque No.">
-                    <Underline width="100%">{r.cheque_number || ""}</Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field
-                    label="Bank"
-                    labelTextW={MID_LABEL_TEXT_W}
-                    colonW={MID_COL_W}
-                    valuePad={MID_VALUE_PAD}
-                  >
-                    <Underline width="100%">{r.bank_name || ""}</Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                  <Box sx={{ width: "100%" }} />
-                </Grid>
-              </Grid>
-
-              {/* Row 5: Cheque / Months / Sign */}
-              <Grid
-                container
-                columnSpacing={0}
-                sx={{
-                  alignItems: "center",
-                  borderBottom: "2px solid #222",
-                  minHeight: 32,
-                  pb: 0.5,
-                  mb: 0.5,
-                  flexWrap: "nowrap",
-                }}
-              >
-                <Grid item sx={{ width: COL1_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field label="Cheque ₹">
-                    <Underline width="100%">
-                      {String((r.payment_type || "").toLowerCase()).includes(
-                        "bank"
-                      ) ||
-                      String((r.payment_type || "").toLowerCase()) === "cheque"
-                        ? r.amount || ""
-                        : ""}
-                    </Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL2_W, flex: "0 0 auto", pr: 1 }}>
-                  <Field
-                    label="Months"
-                    labelTextW={MID_LABEL_TEXT_W}
-                    colonW={MID_COL_W}
-                    valuePad={MID_VALUE_PAD}
-                  >
-                    <Underline width="100%">
-                      {displayUptoMonth(r.month_year, r.months)}
-                    </Underline>
-                  </Field>
-                </Grid>
-                <Grid item sx={{ width: COL3_W, flex: "0 0 auto" }}>
-                  <Field label="Sign.">
-                    <Underline width="100%" align="right"></Underline>
-                  </Field>
-                </Grid>
-              </Grid>
-
-              {/* Footer note line if needed */}
-            </Box>
+            {copies.map((copy, idx) =>
+              renderReceiptCopy(copy, idx === copies.length - 1)
+            )}
           </Box>
-          {/* Footer controls (consistent with AddTeacherModal) */}
+
+          {/* Footer controls */}
           <Divider className="print-hide" />
           <Box
             className="print-hide"

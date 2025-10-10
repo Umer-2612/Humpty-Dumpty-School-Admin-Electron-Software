@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   getBranches: () => ipcRenderer.invoke("get-branches"),
+  addBranch: (branch) => ipcRenderer.invoke("add-branch", branch),
+  updateBranch: (branch) => ipcRenderer.invoke("update-branch", branch),
+  deleteBranch: (id) => ipcRenderer.invoke("delete-branch", id),
   getStudents: (branch_id, academicYearId = null) =>
     ipcRenderer.invoke("get-students", branch_id, academicYearId),
   getStudentsByTeacher: (branch_id, academicYearId = null, teacherId = null, classId = null, shiftName = null, division = null) =>

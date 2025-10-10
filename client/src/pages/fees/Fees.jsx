@@ -1,15 +1,19 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Button from "@mui/material/Button";
 import AddFeesModal from "./AddFeesModal";
 import EditFeesModal from "./EditFeesModal";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import ReceiptModal from "./ReceiptModal";
+import StudentFeeDetailsModal from "./StudentFeeDetailsModal";
 import FeesReportModal from "./FeesReportModal";
 import Tooltip from "@mui/material/Tooltip";
 import TableWrapper from "../../component/TableWrapper";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 import MoneyIcon from "@mui/icons-material/Money";
 import { teal } from "@mui/material/colors";
 import PersonIcon from "@mui/icons-material/Person";
@@ -19,10 +23,13 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import QrCodeIcon from "@mui/icons-material/QrCode";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
 import { useBranch } from "../../context/useBranch";
 import { useYear } from "../../context/YearProvider.jsx";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import CircularProgress from "@mui/material/CircularProgress";
 
 const SETTINGS_KEY = "feesTableSettings";
 
@@ -35,19 +42,30 @@ const Fees = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [editingFees, setEditingFees] = useState(null);
   const [deletingFees, setDeletingFees] = useState(null);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [selectedDetails, setSelectedDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [columnVisibilityModel, setColumnVisibilityModel] = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const searchTimer = useRef(null);
 
   console.log({ selectedReceipt });
 
   // Add serial numbers to fees data
-  const feesWithSrNo = fees.map((item, index) => ({
+  const displayedFees = useMemo(() => {
+    const q = (search || "").trim();
+    return q ? searchResults : fees;
+  }, [fees, search, searchResults]);
+
+  const feesWithSrNo = displayedFees.map((item, index) => ({
     ...item,
     srNo: index + 1,
   }));
@@ -265,7 +283,7 @@ const Fees = () => {
     {
       field: "actions",
       headerName: "Actions",
-      width: 220,
+      width: 300,
       headerAlign: "center",
       align: "center",
       sortable: false,
@@ -279,6 +297,14 @@ const Fees = () => {
             onClick={() => handleViewReceipt(params.row)}
           >
             Receipt
+          </Button>
+          <Button
+            variant="outlined"
+            color="info"
+            size="small"
+            onClick={() => handleViewDetails(params.row)}
+          >
+            Details
           </Button>
           <Button
             variant="contained"
@@ -356,6 +382,81 @@ const Fees = () => {
     fetchFees();
   }, [fetchFees, selectedYear?.id]);
 
+  // Debounced client-side search
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+
+    const q = (search || "").trim().toLowerCase();
+    if (!q) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+
+    searchTimer.current = setTimeout(() => {
+      setSearching(true);
+      try {
+        const filtered = fees.filter((record) => {
+          const tokens = [
+            record.receipt_number,
+            record.student_name,
+            record.roll_number,
+            record.class_name,
+            record.payment_type,
+            record.payee_name,
+            record.payment_date,
+            record.amount,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return tokens.includes(q);
+        });
+        setSearchResults(filtered);
+      } catch (e) {
+        console.error("Fees search error:", e);
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
+  }, [search, fees]);
+
+  const fetchStudentForRecord = useCallback(
+    async (feesRecord) => {
+      if (!feesRecord) return feesRecord;
+      if (feesRecord.student) return { ...feesRecord };
+      const studentId = feesRecord.student_id || feesRecord.studentId || null;
+      if (!studentId) return { ...feesRecord };
+      try {
+        let student = null;
+        if (window?.electronAPI?.getStudentById) {
+          student = await window.electronAPI.getStudentById(studentId);
+        } else if (window?.electronAPI?.getStudents && selectedBranch?.id) {
+          const list = await window.electronAPI.getStudents(
+            selectedBranch.id,
+            selectedYear?.id || null
+          );
+          const studentsList = Array.isArray(list) ? list : list?.students;
+          if (Array.isArray(studentsList)) {
+            student =
+              studentsList.find((s) => String(s.id) === String(studentId)) ||
+              null;
+          }
+        }
+        return { ...feesRecord, student };
+      } catch (e) {
+        console.error("Failed to load student for record:", e);
+        return { ...feesRecord };
+      }
+    },
+    [selectedBranch?.id, selectedYear?.id]
+  );
+
   const handleEditClick = (feesRecord) => {
     setEditingFees(feesRecord);
     setShowEditModal(true);
@@ -371,40 +472,18 @@ const Fees = () => {
   };
 
   const handleViewReceipt = async (feesRecord) => {
-    try {
-      const studentId = feesRecord.student_id || feesRecord.studentId || null;
-      console.log({ studentId });
-      if (studentId) {
-        console.log("here 1");
-        let student = null;
-        if (window?.electronAPI?.getStudentById) {
-          student = await window.electronAPI.getStudentById(studentId);
-        } else if (window?.electronAPI?.getStudents && selectedBranch?.id) {
-          // Fallback: fetch students list and match by id
-          const list = await window.electronAPI.getStudents(
-            selectedBranch.id,
-            selectedYear?.id || null
-          );
-          if (Array.isArray(list)) {
-            student =
-              list.find((s) => String(s.id) === String(studentId)) || null;
-          }
-        }
-        console.log({ student });
-        setSelectedReceipt({ ...feesRecord, student });
-      } else {
-        console.log("here 2");
-        setSelectedReceipt(feesRecord);
-      }
-    } catch (e) {
-      console.error("Failed to load student for receipt:", e);
-      setSelectedReceipt(feesRecord);
-    } finally {
-      setShowReceiptModal(true);
-    }
+    const enrichedRecord = await fetchStudentForRecord(feesRecord);
+    setSelectedReceipt(enrichedRecord);
+    setShowReceiptModal(true);
   };
 
-  const handleAddSuccess = () => {
+  const handleViewDetails = async (feesRecord) => {
+    const enrichedRecord = await fetchStudentForRecord(feesRecord);
+    setSelectedDetails(enrichedRecord);
+    setShowDetailsModal(true);
+  };
+
+  const handleAddSuccess = async (result = {}, submittedPayload = {}) => {
     setShowAddModal(false);
     setSuccess("Fees record added successfully!");
     fetchFees();
@@ -414,6 +493,31 @@ const Fees = () => {
     } catch (e) {
       console.warn("Failed dispatching fees-updated event", e);
     }
+
+    // Automatically open receipt modal for the newly added fee
+    try {
+      const receiptNumber = result?.receipt_number;
+      if (receiptNumber && window?.electronAPI?.getFeesReceipt) {
+        const receiptRes = await window.electronAPI.getFeesReceipt(receiptNumber);
+        const record =
+          receiptRes && receiptRes.success
+            ? receiptRes.receipt
+            : null;
+        if (record) {
+          await handleViewReceipt(record);
+        }
+      } else if (submittedPayload?.student_id) {
+        // Fallback: use submitted payload to build a minimal record if receipt lookup fails
+        await handleViewReceipt({
+          ...submittedPayload,
+          receipt_number: result?.receipt_number,
+          id: result?.id,
+        });
+      }
+    } catch (err) {
+      console.error("Failed to auto-open receipt modal:", err);
+    }
+
     setTimeout(() => setSuccess(""), 3000);
   };
 
@@ -456,6 +560,40 @@ const Fees = () => {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Fees Collection</h1>
         <Stack direction="row" spacing={2} alignItems="center">
+          <Tooltip title={search || "Search by name, receipt, class"} arrow>
+            <TextField
+              size="small"
+              placeholder="Search fees..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{
+                minWidth: 260,
+                "& .MuiInputBase-input": {
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    {searching ? (
+                      <CircularProgress size={16} />
+                    ) : search ? (
+                      <IconButton size="small" onClick={() => setSearch("")}>
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    ) : null}
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Tooltip>
           <Button
             variant="outlined"
             color="secondary"
@@ -526,6 +664,14 @@ const Fees = () => {
         open={showReceiptModal}
         onClose={() => setShowReceiptModal(false)}
         feesRecord={selectedReceipt}
+      />
+      <StudentFeeDetailsModal
+        open={showDetailsModal}
+        onClose={() => {
+          setShowDetailsModal(false);
+          setSelectedDetails(null);
+        }}
+        feesRecord={selectedDetails}
       />
 
       <FeesReportModal

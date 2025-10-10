@@ -174,6 +174,7 @@ db.serialize(() => {
       cheque_date DATE,
       bank_name TEXT,
       payee_name TEXT,
+      upi_id TEXT,
       receipt_number TEXT UNIQUE NOT NULL,
       payment_date DATE NOT NULL,
       academic_year TEXT,
@@ -225,6 +226,13 @@ db.serialize(() => {
   db.run(`ALTER TABLE fees ADD COLUMN fee_charge DECIMAL(10,2)`, (err) => {
     if (err && !err.message.includes("duplicate column name")) {
       console.log("fee_charge column already exists or added");
+    }
+  });
+
+  // Add UPI column to existing fees table if it doesn't exist
+  db.run(`ALTER TABLE fees ADD COLUMN upi_id TEXT`, (err) => {
+    if (err && !err.message.includes("duplicate column name")) {
+      console.log("upi_id column already exists or added");
     }
   });
 

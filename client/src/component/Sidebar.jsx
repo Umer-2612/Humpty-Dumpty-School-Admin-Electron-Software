@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { useBranch } from "../context/useBranch";
 import {
   Drawer,
   List,
@@ -7,10 +6,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Box,
   Typography,
   IconButton,
@@ -29,6 +24,7 @@ import {
   CalendarToday as CalendarIcon,
 } from "@mui/icons-material";
 import YearSwitcher from "./YearSwitcher";
+import BranchSwitcher from "./BranchSwitcher";
 
 const menuItems = [
   { label: "Dashboard", icon: HomeIcon },
@@ -43,14 +39,7 @@ const drawerWidth = 250;
 const collapsedDrawerWidth = 80;
 
 export default function Sidebar({ activePage, setActivePage }) {
-  const { branches, selected, setSelected } = useBranch();
   const [collapsed, setCollapsed] = useState(false);
-
-  const handleBranchChange = (event) => {
-    const branchId = event.target.value;
-    const branch = branches.find((b) => b.id === branchId);
-    setSelected(branch);
-  };
 
   return (
     <Drawer
@@ -96,33 +85,7 @@ export default function Sidebar({ activePage, setActivePage }) {
 
       {!collapsed && (
         <Box sx={{ p: 2 }}>
-          <FormControl fullWidth variant="outlined">
-            <InputLabel id="branch-select-label" sx={{ color: "#a1a1aa" }}>
-              Branch
-            </InputLabel>
-            <Select
-              labelId="branch-select-label"
-              value={selected?.id || ""}
-              onChange={handleBranchChange}
-              label="Branch"
-              sx={{
-                color: "white",
-                ".MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#3f3f46",
-                },
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#52525b",
-                },
-                ".MuiSvgIcon-root": { color: "white" },
-              }}
-            >
-              {branches.map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <BranchSwitcher inverted />
           <Box sx={{ mt: 2 }}>
             <YearSwitcher compact inverted />
           </Box>

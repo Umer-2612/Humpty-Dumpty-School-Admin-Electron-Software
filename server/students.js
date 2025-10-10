@@ -64,7 +64,14 @@ function getStudents(branch_id, academicYearId = null) {
 }
 
 // Get students filtered by teacher assignments for staff reports
-function getStudentsByTeacher(branch_id, academicYearId = null, teacherId = null, classId = null, shiftName = null, division = null) {
+function getStudentsByTeacher(
+  branch_id,
+  academicYearId = null,
+  teacherId = null,
+  classId = null,
+  shiftName = null,
+  division = null
+) {
   console.log(
     "[server/students.js] getStudentsByTeacher() called",
     `branch_id=${branch_id}`,
@@ -74,7 +81,7 @@ function getStudentsByTeacher(branch_id, academicYearId = null, teacherId = null
     `shift=${shiftName}`,
     `division=${division}`
   );
-  
+
   return new Promise((resolve, reject) => {
     let query = `
       SELECT DISTINCT
@@ -105,22 +112,23 @@ function getStudentsByTeacher(branch_id, academicYearId = null, teacherId = null
       JOIN classes c ON s.class_id = c.id
       JOIN branches b ON c.branch_id = b.id
     `;
-    
-    let params = [];
-    const conditions = [];
-    
+
+    const joinParams = [];
+    const whereConditions = [];
+    const whereParams = [];
+
     // Always filter by branch if provided
     if (branch_id) {
-      conditions.push("b.id = ?");
-      params.push(branch_id);
+      whereConditions.push("b.id = ?");
+      whereParams.push(branch_id);
     }
-    
+
     // Filter by academic year if provided
     if (academicYearId) {
-      conditions.push("s.academic_year_id = ?");
-      params.push(academicYearId);
+      whereConditions.push("s.academic_year_id = ?");
+      whereParams.push(academicYearId);
     }
-    
+
     // If teacher is specified, join with teacher assignments
     if (teacherId) {
       query += `
@@ -130,39 +138,48 @@ function getStudentsByTeacher(branch_id, academicYearId = null, teacherId = null
           AND (ta.division = '' OR ta.division IS NULL OR ta.division = s.division)
         )
       `;
-      params.push(teacherId);
+      joinParams.push(teacherId);
     }
-    
+
     // Filter by specific class if provided
     if (classId) {
-      conditions.push("s.class_id = ?");
-      params.push(classId);
+      whereConditions.push("s.class_id = ?");
+      whereParams.push(classId);
     }
-    
+
     // Filter by shift name if provided
     if (shiftName) {
-      conditions.push("c.shift_name = ?");
-      params.push(shiftName);
+      whereConditions.push("c.shift_name = ?");
+      whereParams.push(shiftName);
     }
-    
+
     // Filter by division if provided
     if (division) {
-      conditions.push("s.division = ?");
-      params.push(division);
+      whereConditions.push("s.division = ?");
+      whereParams.push(division);
     }
-    
-    if (conditions.length) {
-      query += ` WHERE ${conditions.join(" AND ")}`;
+
+    if (whereConditions.length) {
+      query += ` WHERE ${whereConditions.join(" AND ")}`;
     }
-    
+
     query += " ORDER BY s.created_at DESC";
-    
+
+    // Maintain parameter order: JOIN placeholders first, followed by WHERE clause placeholders
+    const params = [...joinParams, ...whereParams];
+
     db.all(query, params, (err, rows) => {
       if (err) {
-        console.error("[server/students.js] Error fetching students by teacher:", err);
+        console.error(
+          "[server/students.js] Error fetching students by teacher:",
+          err
+        );
         reject(err);
       } else {
-        console.log("[server/students.js] Students by teacher found:", rows.length);
+        console.log(
+          "[server/students.js] Students by teacher found:",
+          rows.length
+        );
         resolve(rows);
       }
     });
@@ -381,7 +398,7 @@ function addStudent(studentData) {
           const {
             total_fees = 0,
             pending_fees = 0,
-            fee_breakdown = null
+            fee_breakdown = null,
           } = studentData;
 
           // Determine academic year id (use provided or active year)
@@ -398,9 +415,10 @@ function addStudent(studentData) {
               const yearIdToUse =
                 academic_year_id || (yearRow && yearRow.id) || null;
 
-              const fee_breakdown_json = typeof fee_breakdown === 'string' 
-                ? fee_breakdown 
-                : JSON.stringify(fee_breakdown);
+              const fee_breakdown_json =
+                typeof fee_breakdown === "string"
+                  ? fee_breakdown
+                  : JSON.stringify(fee_breakdown);
 
               db.run(
                 `
@@ -534,12 +552,13 @@ function updateStudent(studentData) {
           const {
             total_fees = 0,
             pending_fees = 0,
-            fee_breakdown = null
+            fee_breakdown = null,
           } = studentData;
 
-          const fee_breakdown_json = typeof fee_breakdown === 'string' 
-            ? fee_breakdown 
-            : JSON.stringify(fee_breakdown);
+          const fee_breakdown_json =
+            typeof fee_breakdown === "string"
+              ? fee_breakdown
+              : JSON.stringify(fee_breakdown);
 
           db.run(
             `
