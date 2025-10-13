@@ -1,6 +1,10 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
+
+// Ensure Windows and Electron use the new identity (affects userData path & shortcuts)
+app.setName("Humpty Dumpty Admin Next");
+app.setAppUserModelId("com.humpty.school.admin.next");
 // Defer requiring backend modules until app is ready so db.js can resolve userData path
 let getBranches,
   addBranch,

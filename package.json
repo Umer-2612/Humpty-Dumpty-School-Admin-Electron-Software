@@ -1,6 +1,6 @@
 {
-  "name": "school-management-software",
-  "version": "0.2.0",
+  "name": "humpty-dumpty-admin-next",
+  "version": "0.3.0",
   "main": "main.js",
   "scripts": {
     "dev": "concurrently \"npm:start-client\" \"npm:start-electron\"",
@@ -22,8 +22,8 @@
     "wait-on": "^8.0.3"
   },
   "build": {
-    "appId": "com.humpty.school.admin",
-    "productName": "Humpty Dumpty School Admin",
+    "appId": "com.humpty.school.admin.next",
+    "productName": "Humpty Dumpty Admin Next",
     "directories": {
       "output": "dist",
       "buildResources": "build"

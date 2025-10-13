@@ -71,7 +71,7 @@ export default function Sidebar({ activePage, setActivePage }) {
       >
         {!collapsed && (
           <Typography variant="h6" noWrap component="div">
-            Humpty Dumpty
+            Humpty Dumpty Admin Next
           </Typography>
         )}
         <IconButton
@@ -140,7 +140,7 @@ export default function Sidebar({ activePage, setActivePage }) {
         <>
           <Divider sx={{ borderColor: "rgba(255, 255, 255, 0.12)" }} />
           <Typography variant="caption" sx={{ p: 2, color: "#a1a1aa" }}>
-            &copy; 2025 Humpty Dumpty School
+            &copy; 2025 Humpty Dumpty Admin Next
           </Typography>
         </>
       )}

@@ -245,7 +245,7 @@ const ReceiptModal = ({ open, onClose, feesRecord }) => {
             <Box
               component="img"
               src={logo}
-              alt="Humpty Dumpty Logo"
+              alt="Humpty Dumpty Admin Next Logo"
               sx={{
                 maxWidth: "100%",
                 maxHeight: "100%",
