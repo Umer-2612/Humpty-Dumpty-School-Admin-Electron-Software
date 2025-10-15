@@ -1,0 +1,8 @@
+export { default as AcademicYear } from "./AcademicYear";
+export { default as Branch } from "./Branch";
+export { default as Classroom } from "./Classroom";
+export { default as Fee } from "./Fee";
+export { default as Setting } from "./Setting";
+export { default as Staff } from "./Staff";
+export { default as Student } from "./Student";
+export { default as Transport } from "./Transport";
