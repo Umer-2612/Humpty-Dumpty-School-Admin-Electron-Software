@@ -102,6 +102,7 @@ async function request(path, { method = "GET", body, query, headers } = {}) {
       ...(headers || {}),
     },
     body: isJsonBody ? JSON.stringify(camelCaseKeys(body)) : body,
+    credentials: "include",
   });
 
   let payload = null;

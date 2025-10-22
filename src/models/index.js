@@ -6,3 +6,4 @@ export { default as Setting } from "./Setting";
 export { default as Staff } from "./Staff";
 export { default as Student } from "./Student";
 export { default as Transport } from "./Transport";
+export { default as User } from "./User";

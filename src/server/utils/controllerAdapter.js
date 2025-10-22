@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongoose";
+import {
+  SESSION_COOKIE_NAME,
+  validateSessionToken,
+} from "@/server/utils/session";
 
 function buildQueryParams(searchParams) {
   const result = {};
@@ -19,6 +23,23 @@ function buildQueryParams(searchParams) {
 }
 
 export async function runController(controller, request, params = {}) {
+  const pathname = request.nextUrl?.pathname || "";
+  const isAuthEndpoint =
+    pathname === "/api/auth/login" || pathname === "/api/auth/logout";
+
+  if (!isAuthEndpoint) {
+    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (!sessionToken || !validateSessionToken(sessionToken)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+  }
+
   await connectToDatabase();
 
   const req = {
