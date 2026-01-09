@@ -1,5 +1,38 @@
 
-/node_modules
-/server/school.db
+# System
+.DS_Store
+Thumbs.db
 
-/dist
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Electron
+dist/
+build/
+out/
+
+# Vite / React
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Specific
+server/school.db
+client/node_modules/
+client/dist/
